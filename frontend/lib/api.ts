@@ -355,6 +355,20 @@ export const authApi = {
       body: JSON.stringify(data),
     }),
 
+  /*
+   * Google OAuth sign-in / sign-up.
+   *
+   * Sends the Google ID token (from GoogleLogin's CredentialResponse)
+   * to the Laravel backend, which verifies it with Google, finds or
+   * creates the user, and returns the same { user, token } shape as
+   * login/register, plus a message used to detect first-time signups.
+   */
+  google: (data: { id_token: string }) =>
+    api<AuthResponse & { message?: string }>("/auth/google", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
   logout: () =>
     api<ApiMessage>("/auth/logout", {
       method: "POST",
