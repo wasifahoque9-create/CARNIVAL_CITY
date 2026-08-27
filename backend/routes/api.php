@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Api\BannerController;
+use App\Http\Controllers\Api\Admin\BannerController as AdminBannerController;
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CartController;
@@ -22,6 +24,9 @@ Route::prefix('auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
     Route::post('/verify-email', [AuthController::class, 'verifyEmail']);
+    Route::post('/google', [AuthController::class, 'googleLogin']);
+    Route::post('/send-otp', [AuthController::class, 'sendOtp']);
+    Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
@@ -44,44 +49,31 @@ Route::middleware('auth:sanctum')
 
 /*
 |--------------------------------------------------------------------------
+| Banner Routes
+|--------------------------------------------------------------------------
+*/
+
+Route::get('/banners', [BannerController::class, 'index']);
+
+/*
+|--------------------------------------------------------------------------
 | Product Routes
 |--------------------------------------------------------------------------
 */
 
-// Customer storefront routes.
-// These routes show only active products.
 Route::get('/products', [ProductController::class, 'index']);
 Route::get('/products/{product}', [ProductController::class, 'show']);
 
-// Admin product-management routes.
 Route::middleware(['auth:sanctum', 'admin'])
     ->prefix('admin')
     ->group(function () {
-        Route::get('/products', [
-            ProductController::class,
-            'adminIndex',
-        ]);
-
-        Route::get('/products/{product}', [
-            ProductController::class,
-            'adminShow',
-        ]);
-
-        Route::post('/products', [
-            ProductController::class,
-            'store',
-        ]);
-
-        Route::put('/products/{product}', [
-            ProductController::class,
-            'update',
-        ]);
-
-        Route::delete('/products/{product}', [
-            ProductController::class,
-            'destroy',
-        ]);
+        Route::get('/products', [ProductController::class, 'adminIndex']);
+        Route::get('/products/{product}', [ProductController::class, 'adminShow']);
+        Route::post('/products', [ProductController::class, 'store']);
+        Route::put('/products/{product}', [ProductController::class, 'update']);
+        Route::delete('/products/{product}', [ProductController::class, 'destroy']);
     });
+
 /*
 |--------------------------------------------------------------------------
 | Category Routes
@@ -152,16 +144,10 @@ Route::middleware('auth:sanctum')
 Route::post('/reviews', [ReviewController::class, 'store'])
     ->middleware('auth:sanctum');
 
-Route::get('/reviews/product/{product}', [
-    ReviewController::class,
-    'forProduct',
-]);
+Route::get('/reviews/product/{product}', [ReviewController::class, 'forProduct']);
 
 Route::middleware(['auth:sanctum', 'admin'])
-    ->put('/reviews/{review}/moderate', [
-        ReviewController::class,
-        'moderate',
-    ]);
+    ->put('/reviews/{review}/moderate', [ReviewController::class, 'moderate']);
 
 /*
 |--------------------------------------------------------------------------
@@ -174,18 +160,5 @@ Route::middleware(['auth:sanctum', 'admin'])
     ->group(function () {
         Route::get('/dashboard', [AdminController::class, 'dashboard']);
         Route::get('/reviews', [AdminController::class, 'reviews']);
-    });
-   
-Route::middleware('auth:sanctum')
-    ->prefix('admin')
-    ->group(function () {
-        Route::get(
-            '/products',
-            [ProductController::class, 'adminIndex'],
-        );
-
-        Route::post(
-            '/products',
-            [ProductController::class, 'store'],
-        );
+        Route::apiResource('banners', AdminBannerController::class);
     });

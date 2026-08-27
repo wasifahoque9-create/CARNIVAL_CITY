@@ -12,8 +12,9 @@ import {
 
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
+import GoogleButton from "@/components/auth/GoogleButton";
 import { useAuth } from "@/lib/auth";
-import { ApiError } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 
 export default function RegisterPage() {
   const { register, isAuthenticated, loading: authLoading } = useAuth();
@@ -31,11 +32,64 @@ export default function RegisterPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
+  // OTP / phone verification state
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState("");
+
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
       router.replace("/");
     }
   }, [authLoading, isAuthenticated, router]);
+
+  useEffect(() => {
+    // if phone number changes after verifying, reset verification
+    setOtpVerified(false);
+    setOtpSent(false);
+    setOtp("");
+    setOtpError("");
+  }, [form.phone]);
+
+  async function sendOtp() {
+    setOtpLoading(true);
+    setOtpError("");
+    try {
+      await api("/auth/send-otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ phone: form.phone }),
+      });
+      setOtpSent(true);
+    } catch (err) {
+      setOtpError(err instanceof ApiError ? err.message : "Failed to send code");
+    } finally {
+      setOtpLoading(false);
+    }
+  }
+
+  async function verifyOtp() {
+    setOtpLoading(true);
+    setOtpError("");
+    try {
+      await api("/auth/verify-otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ phone: form.phone, otp }),
+      });
+      setOtpVerified(true);
+    } catch (err) {
+      setOtpError(err instanceof ApiError ? err.message : "Invalid code");
+    } finally {
+      setOtpLoading(false);
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -159,6 +213,15 @@ export default function RegisterPage() {
               </div>
             </div>
 
+            {/* Google Sign-Up */}
+            <GoogleButton />
+
+            <div className="my-8 flex items-center gap-4">
+              <div className="h-px flex-1 bg-white/10"></div>
+              <span className="text-gray-500">OR</span>
+              <div className="h-px flex-1 bg-white/10"></div>
+            </div>
+
             {/* FORM */}
             <form onSubmit={handleSubmit} className="space-y-6">
 
@@ -209,15 +272,39 @@ export default function RegisterPage() {
                 <Input
                   type="tel"
                   value={form.phone}
-                  placeholder="Enter your phone number"
+                  disabled={otpVerified}
+                  placeholder="Enter your phone number (e.g. 01712345678)"
                   onChange={(e) =>
                     setForm({
                       ...form,
                       phone: e.target.value,
                     })
                   }
-                  error={fieldErrors.phone}
+                  error={fieldErrors.phone || otpError}
                 />
+                {form.phone && !otpVerified && (
+                  <div className="mt-3 space-y-3">
+                    {!otpSent ? (
+                      <Button type="button" loading={otpLoading} onClick={sendOtp}>
+                        Send verification code
+                      </Button>
+                    ) : (
+                      <div className="flex gap-3">
+                        <Input
+                          value={otp}
+                          placeholder="Enter 6-digit code"
+                          onChange={(e) => setOtp(e.target.value)}
+                        />
+                        <Button type="button" loading={otpLoading} onClick={verifyOtp}>
+                          Verify
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {otpVerified && (
+                  <p className="mt-2 text-sm text-green-400">✓ Phone number verified</p>
+                )}
               </div>
 
               {/* Password */}
@@ -274,15 +361,8 @@ export default function RegisterPage() {
 
             </form>
 
-            {/* Divider */}
-            <div className="my-8 flex items-center gap-4">
-              <div className="h-px flex-1 bg-white/10"></div>
-              <span className="text-gray-500">OR</span>
-              <div className="h-px flex-1 bg-white/10"></div>
-            </div>
-
             {/* Login */}
-            <div className="rounded-xl border border-purple-500/20 p-5 text-center">
+            <div className="mt-8 rounded-xl border border-purple-500/20 p-5 text-center">
               <p className="text-gray-400">
                 Already have an account?{" "}
                 <Link

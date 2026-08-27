@@ -7,6 +7,7 @@ import { useState } from "react";
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: "📊" },
   { href: "/admin/products", label: "Products", icon: "📦" },
+  { href: "/admin/banners", label: "Banners", icon: "🖼️" },
   { href: "/admin/categories", label: "Categories", icon: "🏷️" },
   { href: "/admin/orders", label: "Orders", icon: "🛒" },
   { href: "/admin/reviews", label: "Reviews", icon: "⭐" },
@@ -18,6 +19,7 @@ export default function AdminSidebar() {
 
   return (
     <>
+      {/* Mobile Menu Button */}
       <button
         type="button"
         className="fixed bottom-4 right-4 z-40 rounded-full bg-primary p-3 text-white shadow-lg lg:hidden"
@@ -27,16 +29,19 @@ export default function AdminSidebar() {
         ☰
       </button>
 
+      {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-primary text-white transition-transform lg:static lg:translate-x-0 ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <div className="flex h-full flex-col">
+          {/* Header */}
           <div className="border-b border-primary-light px-6 py-5">
             <Link href="/admin" className="text-lg font-bold">
               Admin Panel
             </Link>
+
             <Link
               href="/"
               className="mt-1 block text-xs text-white/60 hover:text-secondary"
@@ -44,12 +49,15 @@ export default function AdminSidebar() {
               ← Back to store
             </Link>
           </div>
+
+          {/* Navigation */}
           <nav className="flex-1 space-y-1 px-3 py-4">
             {navItems.map((item) => {
               const active =
                 item.href === "/admin"
                   ? pathname === "/admin"
                   : pathname.startsWith(item.href);
+
               return (
                 <Link
                   key={item.href}
@@ -62,7 +70,7 @@ export default function AdminSidebar() {
                   }`}
                 >
                   <span>{item.icon}</span>
-                  {item.label}
+                  <span>{item.label}</span>
                 </Link>
               );
             })}
@@ -70,6 +78,7 @@ export default function AdminSidebar() {
         </div>
       </aside>
 
+      {/* Mobile Overlay */}
       {mobileOpen && (
         <div
           className="fixed inset-0 z-20 bg-black/40 lg:hidden"

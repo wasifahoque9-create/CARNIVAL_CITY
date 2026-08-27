@@ -12,6 +12,7 @@ import {
   useSearchParams,
 } from "next/navigation";
 
+import GoogleButton from "@/components/auth/GoogleButton";
 import { useAuth } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
 
@@ -239,9 +240,20 @@ function LoginForm() {
               </div>
             </div>
 
+            {/* Google Sign-In */}
+            <div className="p-6 sm:p-8 pb-0">
+              <GoogleButton />
+
+              <div className="my-6 flex items-center gap-3">
+                <div className="h-px flex-1 bg-slate-200"></div>
+                <span className="text-xs text-slate-400">OR</span>
+                <div className="h-px flex-1 bg-slate-200"></div>
+              </div>
+            </div>
+
             <form
               onSubmit={handleSubmit}
-              className="space-y-5 p-6 sm:p-8"
+              className="space-y-5 px-6 pb-6 sm:px-8 sm:pb-8"
             >
               {/* Email */}
               <label className="block">

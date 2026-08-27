@@ -2,6 +2,7 @@ import type {
   Address,
   ApiMessage,
   AuthResponse,
+  Banner,
   Cart,
   Category,
   DashboardStats,
@@ -277,6 +278,34 @@ export function formatOrderNumber(
 
 /*
 |--------------------------------------------------------------------------
+| Banner helpers
+|--------------------------------------------------------------------------
+*/
+
+export function getBannerImage(
+  banner: Pick<Banner, "image_path">,
+): string | null {
+  if (!banner.image_path) {
+    return null;
+  }
+
+  if (
+    banner.image_path.startsWith("http://") ||
+    banner.image_path.startsWith("https://")
+  ) {
+    return banner.image_path;
+  }
+
+  const cleanPath = banner.image_path
+    .replace(/\\/g, "/")
+    .replace(/^\/+/, "")
+    .replace(/^storage\//, "");
+
+  return `${STORAGE_BASE}/${cleanPath}`;
+}
+
+/*
+|--------------------------------------------------------------------------
 | Authentication API
 |--------------------------------------------------------------------------
 */
@@ -414,6 +443,19 @@ export const catalogApi = {
         }),
       },
     ).then(unwrap),
+};
+
+/*
+|--------------------------------------------------------------------------
+| Banner API (public — homepage slider)
+|--------------------------------------------------------------------------
+*/
+
+export const bannerApi = {
+  getActive: () =>
+    api<
+      Banner[] | { data: Banner[] }
+    >("/banners").then(unwrap),
 };
 
 /*
@@ -805,5 +847,57 @@ export const adminApi = {
           status,
         }),
       }).then(unwrap),
+  },
+
+  banners: {
+    /*
+     * Admin banner list — includes hidden/inactive banners
+     * so they can be managed even while off the live site.
+     */
+    list: () =>
+      api<
+        Banner[] | { data: Banner[] }
+      >("/admin/banners").then(unwrap),
+
+    get: (id: number) =>
+      api<Banner | { data: Banner }>(
+        `/admin/banners/${id}`,
+      ).then(unwrap),
+
+    /*
+     * Always FormData, since a banner may include an image upload.
+     */
+    create: (data: FormData) =>
+      api<Banner | { data: Banner }>(
+        "/admin/banners",
+        {
+          method: "POST",
+          body: data,
+        },
+      ).then(unwrap),
+
+    update: (
+      id: number,
+      data: FormData,
+    ) => {
+      if (!data.has("_method")) {
+        data.append("_method", "PUT");
+      }
+
+      return api<
+        Banner | { data: Banner }
+      >(`/admin/banners/${id}`, {
+        method: "POST",
+        body: data,
+      }).then(unwrap);
+    },
+
+    delete: (id: number) =>
+      api<ApiMessage>(
+        `/admin/banners/${id}`,
+        {
+          method: "DELETE",
+        },
+      ),
   },
 };

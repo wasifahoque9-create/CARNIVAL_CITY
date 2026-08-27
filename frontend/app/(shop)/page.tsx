@@ -1,5 +1,6 @@
 ﻿"use client";
 
+
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -10,6 +11,8 @@ import {
   ShieldCheck,
   RotateCcw,
   Headphones,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 // Swiper
@@ -18,12 +21,28 @@ import type { Swiper as SwiperType } from "swiper";
 import { Autoplay, Navigation } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/navigation";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import ProductsByCategory from "@/components/products/ProductsByCategory";
 import { PageLoader } from "@/components/ui/Spinner";
-import { catalogApi } from "@/lib/api";
+import { bannerApi, catalogApi, getBannerImage } from "@/lib/api";
 import type { Category } from "@/types";
+
+type Banner = {
+  id: number | string;
+  tag?: string | null;
+  title: string;
+  highlight?: string | null;
+  description?: string | null;
+  price?: number | string | null;
+  discount_text?: string | null;
+  fallback_emoji?: string | null;
+  cta_link?: string | null;
+  cta_text?: string | null;
+  secondary_cta_link?: string | null;
+  secondary_cta_text?: string | null;
+  image?: string | null;
+  image_path?: string | null;
+};
 
 const categoryIcons: Record<string, string> = {
   laptop: "💻",
@@ -51,7 +70,7 @@ type CategoryWithImage = Category & {
 };
 
 type PromoImageProps = {
-  src: string;
+  src?: string | null;
   alt: string;
   fallback: string;
   className?: string;
@@ -67,7 +86,7 @@ function PromoImage({
 }: PromoImageProps) {
   const [imageFailed, setImageFailed] = useState(false);
 
-  if (imageFailed) {
+  if (!src || imageFailed) {
     return (
       <div className="absolute inset-0 flex items-center justify-center">
         <span className="select-none text-7xl drop-shadow-xl sm:text-8xl">
@@ -90,19 +109,110 @@ function PromoImage({
   );
 }
 
+// Full-cover image used only by the large hero banner.
+// Unlike PromoImage, this intentionally uses object-cover so the uploaded
+// banner fills the complete hero section.
+function HeroBannerImage({
+  src,
+  alt,
+  fallback,
+  priority = false,
+}: PromoImageProps) {
+  const [imageFailed, setImageFailed] = useState(false);
+
+  if (!src || imageFailed) {
+    return (
+      <div className="absolute inset-0 h-full w-full bg-gradient-to-br from-[#121358] via-[#242675] to-[#4b4eb5]">
+        <div className="flex h-full w-full items-center justify-center">
+          <span className="select-none text-8xl opacity-30 drop-shadow-xl sm:text-9xl">
+            {fallback}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      fill
+      priority={priority}
+      sizes="(max-width: 1024px) 100vw, 70vw"
+      className="object-cover object-center"
+      onError={() => setImageFailed(true)}
+    />
+  );
+}
 // ---------------------------------------------------------------------------
-// Hero slider data — 3 slides. Swap the `image` paths for real product shots
-// whenever you have them; `fallback` is the emoji shown if an image 404s.
+// Hero slide shape used for rendering. This is filled either from the admin
+// -managed Banner API, or — if no banners exist yet — from the static
+// defaults below, so the homepage never looks empty on a fresh install.
 // ---------------------------------------------------------------------------
-const heroSlides = [
+type HeroSlideData = {
+  key: string;
+  tag: string;
+  title: string;
+  highlight?: string | null;
+  description: string;
+  price?: string | null;
+  discount?: string | null;
+  image?: string | null;
+  fallback: string;
+  ctaHref: string;
+  ctaText: string;
+  secondaryCtaHref: string;
+  secondaryCtaText: string;
+};
+
+function renderHeroTitle(title: string, highlight?: string | null) {
+  if (!highlight) {
+    return title;
+  }
+
+  const index = title.indexOf(highlight);
+
+  if (index === -1) {
+    return title;
+  }
+
+  return (
+    <>
+      {title.slice(0, index)}
+      <span className="text-[#F59E0B]">{highlight}</span>
+      {title.slice(index + highlight.length)}
+    </>
+  );
+}
+
+function bannerToSlide(banner: Banner): HeroSlideData {
+  return {
+    key: `banner-${banner.id}`,
+    tag: banner.tag || "Featured",
+    title: banner.title,
+    highlight: banner.highlight,
+    description: banner.description || "",
+    price:
+      banner.price !== null && banner.price !== undefined
+        ? String(banner.price)
+        : null,
+    discount: banner.discount_text,
+    image: getBannerImage(banner),
+    fallback: banner.fallback_emoji || "🛍️",
+    ctaHref: banner.cta_link || "#shop-by-category",
+    ctaText: banner.cta_text || "Shop Now",
+    secondaryCtaHref: banner.secondary_cta_link || "/products",
+    secondaryCtaText: banner.secondary_cta_text || "Browse All",
+  };
+}
+
+// Used only until the admin adds real banners (or if the banners API fails).
+const defaultHeroSlides: HeroSlideData[] = [
   {
+    key: "default-1",
     tag: "Featured Technology",
-    title: (
-      <>
-        Upgrade Your World With{" "}
-        <span className="text-[#F59E0B]">Smarter Gadgets</span>
-      </>
-    ),
+    title: "Upgrade Your World With Smarter Gadgets",
+    highlight: "Smarter Gadgets",
     description:
       "Discover premium laptops, smartphones, tablets and accessories selected to make everyday life easier.",
     price: "236",
@@ -110,15 +220,15 @@ const heroSlides = [
     image: "/mobile.png",
     fallback: "💻",
     ctaHref: "#shop-by-category",
+    ctaText: "Shop Now",
+    secondaryCtaHref: "/products",
+    secondaryCtaText: "Browse All",
   },
   {
+    key: "default-2",
     tag: "Hot Deal",
-    title: (
-      <>
-        Power Through Your Day With{" "}
-        <span className="text-[#F59E0B]">Pro Laptops</span>
-      </>
-    ),
+    title: "Power Through Your Day With Pro Laptops",
+    highlight: "Pro Laptops",
     description:
       "High-performance laptops built for work, gaming, and everything in between.",
     price: "412",
@@ -126,22 +236,24 @@ const heroSlides = [
     image: "/laptp2.png",
     fallback: "💻",
     ctaHref: "#shop-by-category",
+    ctaText: "Shop Now",
+    secondaryCtaHref: "/products",
+    secondaryCtaText: "Browse All",
   },
   {
+    key: "default-3",
     tag: "Just Dropped",
-    title: (
-      <>
-        Capture Every Moment With{" "}
-        <span className="text-[#F59E0B]">Smart Cameras</span>
-      </>
-    ),
-    description:
-      "Power, performance, and productivity in one setup",
+    title: "Capture Every Moment With Smart Cameras",
+    highlight: "Smart Cameras",
+    description: "Power, performance, and productivity in one setup",
     price: "189",
     discount: "Save up to 30%",
     image: "/sle1.png",
     fallback: "📷",
     ctaHref: "#shop-by-category",
+    ctaText: "Shop Now",
+    secondaryCtaHref: "/products",
+    secondaryCtaText: "Browse All",
   },
 ];
 
@@ -149,6 +261,7 @@ export default function HomePage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [heroSlides, setHeroSlides] = useState<HeroSlideData[]>(defaultHeroSlides);
   const [activeHeroSlide, setActiveHeroSlide] = useState(0);
   const [categorySwiper, setCategorySwiper] = useState<SwiperType | null>(null);
   const [isCategoryStart, setIsCategoryStart] = useState(true);
@@ -189,6 +302,31 @@ export default function HomePage() {
     };
   }, []);
 
+  // Loaded independently from categories: the hero already has sensible
+  // static defaults, so there's no need to block the whole page on this.
+  useEffect(() => {
+    let pageIsActive = true;
+
+    async function loadBanners() {
+      try {
+        const banners = await bannerApi.getActive();
+
+        if (pageIsActive && Array.isArray(banners) && banners.length > 0) {
+          setHeroSlides(banners.map(bannerToSlide));
+        }
+      } catch (error) {
+        console.error("Unable to load banners:", error);
+        // Falls back to defaultHeroSlides, already set as initial state.
+      }
+    }
+
+    loadBanners();
+
+    return () => {
+      pageIsActive = false;
+    };
+  }, []);
+
   if (loading) {
     return <PageLoader />;
   }
@@ -221,129 +359,143 @@ export default function HomePage() {
 
       {/* Hero promotional section */}
       <section className="px-4 pb-5 pt-6 sm:px-6 lg:px-8">
-        <div className="mx-auto grid max-w-7xl grid-cols-1 gap-4 lg:grid-cols-12">
-          {/* Main large promotional banner — now a 3-slide Swiper carousel */}
-          <article className="relative min-h-[450px] overflow-hidden rounded-3xl bg-gradient-to-br from-[#121358] via-[#242675] to-[#4b4eb5] text-white shadow-xl sm:min-h-[410px] lg:col-span-8">
-            {/* Decorative background — stays fixed across slides */}
-            <div className="pointer-events-none absolute -left-24 -top-24 z-0 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-32 right-10 z-0 h-80 w-80 rounded-full bg-[#F59E0B]/30 blur-3xl" />
-
+        <div className="mx-auto grid max-w-7xl grid-cols-1 gap-4 lg:grid-cols-12 lg:items-stretch">
+          {/* Main large promotional banner — driven by the admin-managed Banner API */}
+          <article className="relative h-[560px] overflow-hidden rounded-3xl bg-[#121358] text-white shadow-xl sm:h-[580px] lg:col-span-8 lg:h-[620px]">
             <Swiper
               modules={[Autoplay]}
               autoplay={{ delay: 5000, disableOnInteraction: false }}
-              loop
+              loop={heroSlides.length > 1}
               onSlideChange={(swiper) => setActiveHeroSlide(swiper.realIndex)}
-              className="hero-swiper relative z-10"
+              className="hero-swiper relative z-10 h-full w-full"
             >
               {heroSlides.map((slide, index) => (
-                <SwiperSlide key={slide.tag}>
-                  <div className="relative min-h-[450px] px-6 py-9 sm:min-h-[410px] sm:px-10 sm:py-12 lg:px-12">
-                    <div className="relative z-20 max-w-xl">
-                      <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] backdrop-blur-sm">
-                        <span className="h-2 w-2 animate-pulse rounded-full bg-[#F59E0B]" />
-                        {slide.tag}
-                      </div>
-
-                      <h1 className="max-w-lg text-3xl font-black leading-tight sm:text-4xl lg:text-5xl">
-                        {slide.title}
-                      </h1>
-
-                      <p className="mt-5 max-w-md text-sm leading-7 text-white/80 sm:text-base">
-                        {slide.description}
-                      </p>
-
-                      <div className="mt-6 flex items-end gap-3">
-                        <div>
-                          <p className="text-xs font-medium uppercase tracking-wider text-white/60">
-                            Starting from
-                          </p>
-                          <p className="mt-1 text-3xl font-black text-white">
-                            ${slide.price}
-                            <span className="text-base font-semibold text-white/60">
-                              .00
-                            </span>
-                          </p>
-                        </div>
-
-                        <span className="mb-1 rounded-md bg-[#F59E0B] px-2.5 py-1 text-xs font-bold text-white">
-                          {slide.discount}
-                        </span>
-                      </div>
-
-                      <div className="mt-8 flex flex-wrap gap-3">
-                        <Link
-                          href={slide.ctaHref}
-                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#F59E0B] px-6 py-3 text-sm font-bold text-white shadow-lg transition duration-300 hover:-translate-y-0.5 hover:bg-[#dc8908] hover:shadow-xl"
-                        >
-                          Shop Now
-                          <svg
-                            className="h-4 w-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            aria-hidden="true"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="m9 18 6-6-6-6"
-                            />
-                          </svg>
-                        </Link>
-
-                        <Link
-                          href="/products"
-                          className="inline-flex items-center justify-center rounded-xl border border-white/40 bg-white/10 px-6 py-3 text-sm font-bold text-white backdrop-blur-sm transition duration-300 hover:bg-white hover:text-[#121358]"
-                        >
-                          Browse All
-                        </Link>
-                      </div>
-                    </div>
-
-                    {/* Slide product image */}
-                    <div className="absolute bottom-0 right-0 z-10 h-[48%] w-[70%] sm:h-[88%] sm:w-[52%] lg:right-2">
-                      <PromoImage
+                <SwiperSlide key={slide.key} className="!h-full">
+                  <div className="relative h-full w-full overflow-hidden">
+                    {/* Uploaded banner image fills the complete hero div */}
+                    <div className="absolute inset-0 z-0 h-full w-full">
+                      <HeroBannerImage
                         src={slide.image}
                         alt={`${slide.tag} promotion`}
                         fallback={slide.fallback}
-                        className="object-bottom drop-shadow-2xl"
                         priority={index === 0}
                       />
+                    </div>
+
+                    {/* Overlay keeps text readable */}
+                    <div className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-r from-[#080934]/95 via-[#121358]/72 to-transparent" />
+                    <div className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-t from-black/35 via-transparent to-black/5 sm:hidden" />
+
+                    {/* Slide content */}
+                    <div className="relative z-20 flex h-full w-full items-center px-6 py-9 sm:px-10 sm:py-10 lg:px-12">
+                      <div className="max-w-xl sm:max-w-[58%]">
+                        {slide.tag && (
+                          <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/25 bg-black/20 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] backdrop-blur-sm">
+                            <span className="h-2 w-2 rounded-full bg-[#F59E0B]" />
+                            {slide.tag}
+                          </div>
+                        )}
+
+                        <h1 className="max-w-lg text-3xl font-black leading-tight text-white drop-shadow-md sm:text-4xl lg:text-5xl">
+                          {renderHeroTitle(slide.title, slide.highlight)}
+                        </h1>
+
+                        {slide.description && (
+                          <p className="mt-5 max-w-md text-sm leading-7 text-white/90 drop-shadow sm:text-base">
+                            {slide.description}
+                          </p>
+                        )}
+
+                        {(slide.price || slide.discount) && (
+                          <div className="mt-6 flex flex-wrap items-end gap-3">
+                            {slide.price && (
+                              <div>
+                                <p className="text-xs font-medium uppercase tracking-wider text-white/70">
+                                  Starting from
+                                </p>
+                                <p className="mt-1 text-3xl font-black text-white">
+                                  ${slide.price}
+                                  <span className="text-base font-semibold text-white/70">.00</span>
+                                </p>
+                              </div>
+                            )}
+
+                            {slide.discount && (
+                              <span className="mb-1 rounded-md bg-[#F59E0B] px-2.5 py-1 text-xs font-bold text-white">
+                                {slide.discount}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="mt-8 flex flex-wrap gap-3">
+                          <Link
+                            href={slide.ctaHref}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#F59E0B] px-6 py-3 text-sm font-bold text-white shadow-lg transition duration-300 hover:-translate-y-0.5 hover:bg-[#dc8908] hover:shadow-xl"
+                          >
+                            {slide.ctaText}
+                            <svg
+                              className="h-4 w-4"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              aria-hidden="true"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="m9 18 6-6-6-6"
+                              />
+                            </svg>
+                          </Link>
+
+                          {slide.secondaryCtaText && (
+                            <Link
+                              href={slide.secondaryCtaHref}
+                              className="inline-flex items-center justify-center rounded-xl border border-white/40 bg-black/20 px-6 py-3 text-sm font-bold text-white backdrop-blur-sm transition duration-300 hover:bg-white hover:text-[#121358]"
+                            >
+                              {slide.secondaryCtaText}
+                            </Link>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </SwiperSlide>
               ))}
             </Swiper>
 
-            {/* Custom slide indicators, driven by Swiper's onSlideChange */}
-            <div className="absolute bottom-5 left-1/2 z-20 flex -translate-x-1/2 gap-2 sm:left-auto sm:right-8 sm:translate-x-0">
-              {heroSlides.map((slide, index) => (
-                <span
-                  key={slide.tag}
-                  className={`h-2 rounded-full transition-all duration-300 ${
-                    activeHeroSlide === index
-                      ? "w-6 bg-[#F59E0B]"
-                      : "w-2 bg-white/40"
-                  }`}
-                />
-              ))}
-            </div>
+            {/* Slider dots */}
+            {heroSlides.length > 1 && (
+              <div className="absolute bottom-5 left-1/2 z-30 flex -translate-x-1/2 gap-2 sm:left-auto sm:right-8 sm:translate-x-0">
+                {heroSlides.map((slide, index) => (
+                  <span
+                    key={slide.key}
+                    className={`h-2 rounded-full transition-all duration-300 ${
+                      activeHeroSlide === index
+                        ? "w-6 bg-[#F59E0B]"
+                        : "w-2 bg-white/50"
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
 
-            {/* Makes the Swiper wrapper/slides fill the banner's height */}
             <style jsx global>{`
               .hero-swiper,
               .hero-swiper .swiper-wrapper,
               .hero-swiper .swiper-slide {
-                height: 100%;
+                width: 100%;
+                height: 100% !important;
               }
             `}</style>
           </article>
 
           {/* Right-side promotional banners */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:col-span-4 lg:grid-cols-1">
+          <div className="grid gap-4 sm:grid-cols-2 lg:col-span-4 lg:h-[620px] lg:grid-cols-1 lg:grid-rows-2">
             {/* Smart watch banner */}
-            <article className="group relative min-h-[200px] overflow-hidden rounded-3xl bg-gradient-to-br from-[#ffd52a] to-[#f3a900] p-6 shadow-lg transition duration-300 hover:-translate-y-1 hover:shadow-xl">
+            <article className="group relative min-h-[250px] overflow-hidden rounded-3xl bg-gradient-to-br from-[#ffd52a] to-[#f3a900] p-7 shadow-lg transition duration-300 hover:-translate-y-1 hover:shadow-xl lg:h-full lg:min-h-0">
               <div className="relative z-20 max-w-[58%]">
                 <span className="inline-block rounded-full bg-black/10 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-[#121358]">
                   Trending
@@ -383,7 +535,7 @@ export default function HomePage() {
             </article>
 
             {/* Headphone banner */}
-            <article className="group relative min-h-[200px] overflow-hidden rounded-3xl bg-gradient-to-br from-[#7146d9] via-[#8b5de7] to-[#d167c7] p-6 text-white shadow-lg transition duration-300 hover:-translate-y-1 hover:shadow-xl">
+            <article className="group relative min-h-[250px] overflow-hidden rounded-3xl bg-gradient-to-br from-[#7146d9] via-[#8b5de7] to-[#d167c7] p-7 text-white shadow-lg transition duration-300 hover:-translate-y-1 hover:shadow-xl lg:h-full lg:min-h-0">
               <div className="relative z-20 max-w-[58%]">
                 <span className="inline-block rounded-full bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-white">
                   New Arrival

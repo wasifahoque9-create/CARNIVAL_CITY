@@ -18,7 +18,20 @@ class RegisterRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'confirmed', Password::defaults()],
-            'phone' => ['nullable', 'string', 'max:20'],
+            'phone' => [
+                'nullable',
+                'string',
+                'regex:/^(?:\+8801|01)[3-9]\d{8}$/',
+                'unique:users,phone',
+            ],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'phone.regex' => 'Please enter a valid Bangladeshi phone number.',
+            'phone.unique' => 'This phone number is already registered.',
         ];
     }
 }
