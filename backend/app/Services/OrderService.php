@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Notifications\OrderPlacedNotification;
 use App\Notifications\OrderStatusChangedNotification;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
 
 class OrderService
@@ -109,8 +110,13 @@ class OrderService
 
             $this->cartService->clearCart($user);
 
+            /*
+             * Load everything needed by the
+             * registered customer's confirmation email.
+             */
             $order->load([
-                'items.product',
+                'user',
+                'items.product.images',
                 'items.variant',
                 'shippingAddress',
                 'payment',
@@ -235,12 +241,30 @@ class OrderService
              */
             $cart->delete();
 
+            /*
+             * Load everything needed by:
+             * - Admin order details
+             * - Guest order confirmation email
+             */
             $order->load([
-                'items.product',
+                'user',
+                'items.product.images',
                 'items.variant',
                 'shippingAddress',
                 'payment',
             ]);
+
+            /*
+             * Send confirmation email to guest.
+             */
+            if ($order->guest_email) {
+                Notification::route(
+                    'mail',
+                    $order->guest_email
+                )->notify(
+                    new OrderPlacedNotification($order)
+                );
+            }
 
             return $order;
         });
@@ -344,7 +368,8 @@ class OrderService
 
             /*
              * Guest orders have no User model,
-             * so only notify registered customers.
+             * so only notify registered customers
+             * about later status changes for now.
              */
             if ($order->user) {
                 $order->user->notify(

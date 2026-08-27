@@ -68,10 +68,13 @@ class OrderController extends Controller
         /*
          * Load complete order information before
          * sending the newly created order response.
+         *
+         * Product images are loaded here so the
+         * frontend can show ordered product pictures.
          */
         $order->load([
             'user',
-            'items.product',
+            'items.product.images',
             'items.variant',
             'shippingAddress',
             'payment',
@@ -88,7 +91,7 @@ class OrderController extends Controller
         $query = Order::query()
             ->with([
                 'user',
-                'items.product',
+                'items.product.images',
                 'items.variant',
                 'shippingAddress',
                 'payment',
@@ -143,8 +146,7 @@ class OrderController extends Controller
          */
         if (
             ! $request->user()->isAdmin()
-            && $order->user_id
-                !== $request->user()->id
+            && $order->user_id !== $request->user()->id
         ) {
             abort(
                 403,
@@ -154,7 +156,7 @@ class OrderController extends Controller
 
         $order->load([
             'user',
-            'items.product',
+            'items.product.images',
             'items.variant',
             'shippingAddress',
             'payment',
@@ -178,7 +180,7 @@ class OrderController extends Controller
 
         $order->load([
             'user',
-            'items.product',
+            'items.product.images',
             'items.variant',
             'shippingAddress',
             'payment',
@@ -207,7 +209,7 @@ class OrderController extends Controller
 
         $order->load([
             'user',
-            'items.product',
+            'items.product.images',
             'items.variant',
             'shippingAddress',
             'payment',

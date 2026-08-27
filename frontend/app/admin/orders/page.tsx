@@ -488,32 +488,50 @@ export default function AdminOrdersPage() {
 
                           {/* Order Items */}
                           <section className="mt-6 rounded-xl border border-border bg-white p-5">
-                            <h3 className="text-sm font-bold text-gray-900">
-                              Order Items
-                            </h3>
+                            <div className="flex items-center justify-between gap-4">
+                              <div>
+                                <h3 className="text-sm font-bold text-gray-900">
+                                  Order Items
+                                </h3>
+
+                                <p className="mt-1 text-xs text-muted">
+                                  Products included in this
+                                  order
+                                </p>
+                              </div>
+
+                              <div className="text-sm font-semibold text-gray-900">
+                                {order.items?.length ?? 0}{" "}
+                                item
+                                {(order.items?.length ??
+                                  0) !== 1
+                                  ? "s"
+                                  : ""}
+                              </div>
+                            </div>
 
                             {order.items?.length ? (
                               <div className="mt-4 overflow-x-auto">
                                 <table className="w-full text-sm">
                                   <thead className="bg-gray-50">
                                     <tr>
-                                      <th className="px-3 py-2 text-left">
+                                      <th className="px-3 py-3 text-left">
                                         Product
                                       </th>
 
-                                      <th className="px-3 py-2 text-left">
+                                      <th className="px-3 py-3 text-left">
                                         Variant
                                       </th>
 
-                                      <th className="px-3 py-2 text-left">
+                                      <th className="px-3 py-3 text-center">
                                         Quantity
                                       </th>
 
-                                      <th className="px-3 py-2 text-left">
+                                      <th className="px-3 py-3 text-right">
                                         Unit Price
                                       </th>
 
-                                      <th className="px-3 py-2 text-left">
+                                      <th className="px-3 py-3 text-right">
                                         Line Total
                                       </th>
                                     </tr>
@@ -521,47 +539,133 @@ export default function AdminOrdersPage() {
 
                                   <tbody>
                                     {order.items.map(
-                                      (item) => (
-                                        <tr
-                                          key={
-                                            item.id
-                                          }
-                                          className="border-t border-border"
-                                        >
-                                          <td className="px-3 py-3 font-medium">
-                                            {item
-                                              .product
-                                              ?.name ??
-                                              `Product #${item.product_id}`}
-                                          </td>
+                                      (item) => {
+                                        const productImage =
+                                          item.product?.images?.find(
+                                            (
+                                              image,
+                                            ) =>
+                                              image.is_primary,
+                                          ) ??
+                                          item.product
+                                            ?.images?.[0];
 
-                                          <td className="px-3 py-3 text-muted">
-                                            {item.variant
-                                              ? `${item.variant.variant_name}: ${item.variant.variant_value}`
-                                              : "—"}
-                                          </td>
-
-                                          <td className="px-3 py-3">
-                                            {
-                                              item.quantity
+                                        return (
+                                          <tr
+                                            key={
+                                              item.id
                                             }
-                                          </td>
+                                            className="border-t border-border"
+                                          >
+                                            {/* Product image + name */}
+                                            <td className="px-3 py-4">
+                                              <div className="flex min-w-[260px] items-center gap-4">
+                                                {productImage?.url ? (
+                                                  <img
+                                                    src={
+                                                      productImage.url
+                                                    }
+                                                    alt={
+                                                      item
+                                                        .product
+                                                        ?.name ??
+                                                      "Ordered product"
+                                                    }
+                                                    className="h-20 w-20 shrink-0 rounded-xl border border-border bg-white object-cover"
+                                                    loading="lazy"
+                                                  />
+                                                ) : (
+                                                  <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border border-border bg-gray-100 px-2 text-center text-[10px] font-medium text-muted">
+                                                    No
+                                                    Image
+                                                  </div>
+                                                )}
 
-                                          <td className="px-3 py-3">
-                                            {formatPrice(
-                                              item.unit_price,
-                                            )}
-                                          </td>
+                                                <div className="min-w-0">
+                                                  <div className="font-semibold text-gray-900">
+                                                    {item
+                                                      .product
+                                                      ?.name ??
+                                                      `Product #${item.product_id}`}
+                                                  </div>
 
-                                          <td className="px-3 py-3 font-semibold text-secondary">
-                                            {formatPrice(
-                                              item.line_total,
-                                            )}
-                                          </td>
-                                        </tr>
-                                      ),
+                                                  {item
+                                                    .product
+                                                    ?.brand && (
+                                                    <div className="mt-1 text-xs text-muted">
+                                                      {
+                                                        item
+                                                          .product
+                                                          .brand
+                                                      }
+                                                    </div>
+                                                  )}
+
+                                                  {item
+                                                    .product
+                                                    ?.sku && (
+                                                    <div className="mt-1 text-xs text-muted">
+                                                      SKU:{" "}
+                                                      {
+                                                        item
+                                                          .product
+                                                          .sku
+                                                      }
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            </td>
+
+                                            {/* Variant */}
+                                            <td className="px-3 py-4 text-muted">
+                                              {item.variant
+                                                ? `${item.variant.variant_name}: ${item.variant.variant_value}`
+                                                : "—"}
+                                            </td>
+
+                                            {/* Quantity */}
+                                            <td className="px-3 py-4 text-center font-medium">
+                                              {
+                                                item.quantity
+                                              }
+                                            </td>
+
+                                            {/* Unit price */}
+                                            <td className="whitespace-nowrap px-3 py-4 text-right">
+                                              {formatPrice(
+                                                item.unit_price,
+                                              )}
+                                            </td>
+
+                                            {/* Line total */}
+                                            <td className="whitespace-nowrap px-3 py-4 text-right font-semibold text-secondary">
+                                              {formatPrice(
+                                                item.line_total,
+                                              )}
+                                            </td>
+                                          </tr>
+                                        );
+                                      },
                                     )}
                                   </tbody>
+
+                                  <tfoot>
+                                    <tr className="border-t-2 border-border bg-gray-50">
+                                      <td
+                                        colSpan={4}
+                                        className="px-3 py-4 text-right font-bold text-gray-900"
+                                      >
+                                        Order Total
+                                      </td>
+
+                                      <td className="whitespace-nowrap px-3 py-4 text-right text-base font-bold text-secondary">
+                                        {formatPrice(
+                                          order.total_amount,
+                                        )}
+                                      </td>
+                                    </tr>
+                                  </tfoot>
                                 </table>
                               </div>
                             ) : (
