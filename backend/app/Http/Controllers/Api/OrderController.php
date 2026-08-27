@@ -8,86 +8,116 @@ use App\Http\Requests\Api\Order\StoreOrderRequest;
 use App\Http\Requests\Api\Order\UpdateOrderStatusRequest;
 use App\Http\Resources\OrderResource;
 use App\Models\Order;
-use App\Services\CartResolver;
 use App\Services\OrderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 class OrderController extends Controller
 {
     public function __construct(
-        private OrderService $orderService,
-        private CartResolver $cartResolver,
+        private OrderService $orderService
     ) {}
 
-    public function store(StoreOrderRequest $request): JsonResponse
-    {
-        /*
-         * Authentication is optional on this endpoint.
-         *
-         * Registered customer:
-         *   use existing saved shipping address.
-         *
-         * Guest customer:
-         *   use guest cart + checkout information.
-         */
-        $user = Auth::guard('sanctum')->user();
-
-        $paymentMethod = PaymentMethod::from(
-            $request->validated('payment_method')
+    private function getGuestToken(
+        Request $request
+    ): ?string {
+        $token = $request->header(
+            'X-Guest-Cart-Token'
         );
 
-        if ($user) {
-            /*
-             * Existing registered-user checkout.
-             */
-            $order = $this->orderService->placeOrder(
-                $user,
-                $request->integer('shipping_address_id'),
-                $paymentMethod,
-                $request->input('gateway_payload', []),
-            );
-        } else {
-            /*
-             * Guest checkout.
-             *
-             * CartResolver reads X-Guest-Token
-             * from the request.
-             */
-            $cart = $this->cartResolver->resolve($request);
+        return $token
+            ? trim((string) $token)
+            : null;
+    }
 
-            $order = $this->orderService->placeGuestOrder(
-                $cart,
-                $request->validated(),
-                $paymentMethod,
-                $request->input('gateway_payload', []),
-            );
-        }
+    public function store(
+        StoreOrderRequest $request
+    ): JsonResponse {
+        $guestToken =
+            $this->getGuestToken($request);
 
-        /*
-         * Load complete order information before
-         * sending the newly created order response.
-         */
-        $order->load([
-            'user',
-            'items.product',
-            'items.variant',
-            'shippingAddress',
-            'payment',
-        ]);
+        $order =
+            $this->orderService->placeOrder(
+                $request->user(),
+
+                $guestToken,
+
+                $request->filled(
+                    'shipping_address_id'
+                )
+                    ? $request->integer(
+                        'shipping_address_id'
+                    )
+                    : null,
+
+                PaymentMethod::from(
+                    (string) $request->input(
+                        'payment_method'
+                    )
+                ),
+
+                [
+                    'guest_name' =>
+                        $request->input(
+                            'guest_name'
+                        ),
+
+                    'guest_email' =>
+                        $request->input(
+                            'guest_email'
+                        ),
+
+                    'guest_phone' =>
+                        $request->input(
+                            'guest_phone'
+                        ),
+
+                    'guest_address_line1' =>
+                        $request->input(
+                            'guest_address_line1'
+                        ),
+
+                    'guest_address_line2' =>
+                        $request->input(
+                            'guest_address_line2'
+                        ),
+
+                    'guest_city' =>
+                        $request->input(
+                            'guest_city'
+                        ),
+
+                    'guest_postal_code' =>
+                        $request->input(
+                            'guest_postal_code'
+                        ),
+
+                    'guest_country' =>
+                        $request->input(
+                            'guest_country'
+                        ),
+                ],
+
+                $request->input(
+                    'gateway_payload',
+                    []
+                ),
+            );
 
         return response()->json([
-            'message' => 'Order placed successfully.',
-            'data' => new OrderResource($order),
+            'message' =>
+                'Order placed successfully.',
+
+            'data' =>
+                new OrderResource($order),
         ], 201);
     }
 
-    public function index(Request $request): JsonResponse
-    {
+    public function index(
+        Request $request
+    ): JsonResponse {
         $query = Order::query()
             ->with([
-                'user',
                 'items.product',
                 'items.variant',
                 'shippingAddress',
@@ -95,13 +125,9 @@ class OrderController extends Controller
             ])
             ->latest();
 
-        /*
-         * Admin can see every order.
-         *
-         * Regular authenticated customers can
-         * only see their own orders.
-         */
-        if (! $request->user()->isAdmin()) {
+        if (
+            ! $request->user()->isAdmin()
+        ) {
             $query->where(
                 'user_id',
                 $request->user()->id
@@ -109,11 +135,17 @@ class OrderController extends Controller
         }
 
         $orders = $query->paginate(
-            $request->integer('per_page', 15)
+            $request->integer(
+                'per_page',
+                15
+            )
         );
 
         return response()->json([
-            'data' => OrderResource::collection($orders),
+            'data' =>
+                OrderResource::collection(
+                    $orders
+                ),
 
             'meta' => [
                 'current_page' =>
@@ -135,16 +167,10 @@ class OrderController extends Controller
         Request $request,
         Order $order
     ): JsonResponse {
-        /*
-         * Admin can view any order.
-         *
-         * Registered customers can only view
-         * orders belonging to their account.
-         */
         if (
             ! $request->user()->isAdmin()
-            && $order->user_id
-                !== $request->user()->id
+            && $order->user_id !==
+                $request->user()->id
         ) {
             abort(
                 403,
@@ -153,7 +179,6 @@ class OrderController extends Controller
         }
 
         $order->load([
-            'user',
             'items.product',
             'items.variant',
             'shippingAddress',
@@ -171,18 +196,11 @@ class OrderController extends Controller
         Order $order
     ): JsonResponse {
         $order =
-            $this->orderService->cancelOrder(
-                $request->user(),
-                $order
-            );
-
-        $order->load([
-            'user',
-            'items.product',
-            'items.variant',
-            'shippingAddress',
-            'payment',
-        ]);
+            $this->orderService
+                ->cancelOrder(
+                    $request->user(),
+                    $order
+                );
 
         return response()->json([
             'message' =>
@@ -198,20 +216,15 @@ class OrderController extends Controller
         Order $order
     ): JsonResponse {
         $order =
-            $this->orderService->updateStatus(
-                $order,
-                \App\Enums\OrderStatus::from(
-                    $request->validated('status')
-                ),
-            );
-
-        $order->load([
-            'user',
-            'items.product',
-            'items.variant',
-            'shippingAddress',
-            'payment',
-        ]);
+            $this->orderService
+                ->updateStatus(
+                    $order,
+                    \App\Enums\OrderStatus::from(
+                        $request->validated(
+                            'status'
+                        )
+                    ),
+                );
 
         return response()->json([
             'message' =>

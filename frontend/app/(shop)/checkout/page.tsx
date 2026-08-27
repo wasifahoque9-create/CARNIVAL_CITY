@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -25,17 +26,16 @@ import {
   FaMicrochip,
   FaMoneyBillWave,
   FaPlus,
-  FaRotate,
   FaShieldHalved,
   FaTruckFast,
   FaXmark,
 } from "react-icons/fa6";
 
 import { PageLoader } from "@/components/ui/Spinner";
+import { useAuth } from "@/lib/auth";
+import { useCart } from "@/lib/cart";
 import {
   addressApi,
-  api,
-  authApi,
   cartApi,
   formatPrice,
   orderApi,
@@ -43,8 +43,8 @@ import {
 import type {
   Address,
   Cart,
+  CheckoutPayload,
   Order,
-  User,
 } from "@/types";
 
 type PaymentMethod = "cod" | "gateway";
@@ -55,19 +55,19 @@ const INITIAL_ADDRESS = {
   line2: "",
   city: "",
   postal_code: "",
-  country: "US",
+  country: "Bangladesh",
   is_default: true,
 };
 
-const INITIAL_GUEST_DETAILS = {
-  name: "",
-  phone: "",
-  email: "",
-  line1: "",
-  line2: "",
-  city: "",
-  area: "",
-  postal_code: "",
+const INITIAL_GUEST = {
+  guest_name: "",
+  guest_email: "",
+  guest_phone: "",
+  guest_address_line1: "",
+  guest_address_line2: "",
+  guest_city: "",
+  guest_postal_code: "",
+  guest_country: "Bangladesh",
 };
 
 function getErrorMessage(
@@ -93,12 +93,8 @@ function getErrorMessage(
 
 export default function CheckoutPage() {
   const router = useRouter();
-
-  const [user, setUser] =
-    useState<User | null>(null);
-
-  const [authLoading, setAuthLoading] =
-    useState(true);
+  const { user, loading: authLoading } = useAuth();
+  const { refreshCart } = useCart();
 
   const [cart, setCart] =
     useState<Cart | null>(null);
@@ -112,11 +108,10 @@ export default function CheckoutPage() {
   const [
     paymentMethod,
     setPaymentMethod,
-  ] =
-    useState<PaymentMethod>("cod");
+  ] = useState<PaymentMethod>("cod");
 
-  const [notes, setNotes] =
-    useState("");
+  const [guest, setGuest] =
+    useState(INITIAL_GUEST);
 
   const [loading, setLoading] =
     useState(true);
@@ -140,42 +135,12 @@ export default function CheckoutPage() {
   const [newAddress, setNewAddress] =
     useState(INITIAL_ADDRESS);
 
-  const [guestDetails, setGuestDetails] =
-    useState(INITIAL_GUEST_DETAILS);
-
   const [
-    completedGuestOrderId,
-    setCompletedGuestOrderId,
-  ] = useState<number | null>(null);
+    completedOrder,
+    setCompletedOrder,
+  ] = useState<Order | null>(null);
 
-  useEffect(() => {
-    let pageIsActive = true;
-
-    async function loadCurrentUser() {
-      try {
-        const currentUser =
-          await authApi.getUser();
-
-        if (pageIsActive) {
-          setUser(currentUser);
-        }
-      } catch {
-        if (pageIsActive) {
-          setUser(null);
-        }
-      } finally {
-        if (pageIsActive) {
-          setAuthLoading(false);
-        }
-      }
-    }
-
-    void loadCurrentUser();
-
-    return () => {
-      pageIsActive = false;
-    };
-  }, []);
+  const isGuest = !user;
 
   useEffect(() => {
     if (authLoading) {
@@ -189,29 +154,38 @@ export default function CheckoutPage() {
         setLoading(true);
         setError("");
 
-        const cartData = await cartApi.get();
+        if (user) {
+          const [cartData, addressData] =
+            await Promise.all([
+              cartApi.get(),
+              addressApi.list(),
+            ]);
 
-        const addressData = user
-          ? await addressApi.list()
-          : [];
+          if (!pageIsActive) return;
 
-        if (!pageIsActive) {
-          return;
-        }
+          setCart(cartData);
+          setAddresses(addressData);
 
-        setCart(cartData);
-        setAddresses(addressData);
+          const defaultAddress =
+            addressData.find(
+              (address) =>
+                address.is_default,
+            ) ?? addressData[0];
 
-        const defaultAddress =
-          addressData.find(
-            (address) =>
-              address.is_default,
-          ) ?? addressData[0];
+          if (defaultAddress) {
+            setAddressId(
+              defaultAddress.id,
+            );
+          }
+        } else {
+          const cartData =
+            await cartApi.get();
 
-        if (defaultAddress) {
-          setAddressId(
-            defaultAddress.id,
-          );
+          if (!pageIsActive) return;
+
+          setCart(cartData);
+          setAddresses([]);
+          setAddressId("");
         }
       } catch (error) {
         console.error(
@@ -259,14 +233,11 @@ export default function CheckoutPage() {
       0,
     ) ?? 0;
 
-  const guestDetailsReady =
-    guestDetails.name.trim() !== "" &&
-    guestDetails.phone.trim() !== "" &&
-    guestDetails.line1.trim() !== "" &&
-    guestDetails.city.trim() !== "" &&
-    guestDetails.area.trim() !== "";
-
   async function handleAddAddress() {
+    if (!user) {
+      return;
+    }
+
     if (!newAddress.line1.trim()) {
       setError(
         "Address Line 1 is required.",
@@ -327,10 +298,64 @@ export default function CheckoutPage() {
     }
   }
 
+  function validateGuest(): boolean {
+    if (!guest.guest_name.trim()) {
+      setError("Full name is required.");
+      return false;
+    }
+
+    if (!guest.guest_email.trim()) {
+      setError("Email is required.");
+      return false;
+    }
+
+    if (!guest.guest_phone.trim()) {
+      setError("Phone number is required.");
+      return false;
+    }
+
+    if (
+      !guest.guest_address_line1.trim()
+    ) {
+      setError(
+        "Address Line 1 is required.",
+      );
+      return false;
+    }
+
+    if (!guest.guest_city.trim()) {
+      setError("City is required.");
+      return false;
+    }
+
+    if (
+      !guest.guest_postal_code.trim()
+    ) {
+      setError(
+        "Postal code is required.",
+      );
+      return false;
+    }
+
+    if (
+      !guest.guest_country.trim()
+    ) {
+      setError("Country is required.");
+      return false;
+    }
+
+    return true;
+  }
+
   async function handleCheckout(
     event: FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
+
+    if (!cart?.items?.length) {
+      setError("Your cart is empty.");
+      return;
+    }
 
     if (user && !addressId) {
       setError(
@@ -339,10 +364,7 @@ export default function CheckoutPage() {
       return;
     }
 
-    if (!user && !guestDetailsReady) {
-      setError(
-        "Please complete the required delivery information.",
-      );
+    if (!user && !validateGuest()) {
       return;
     }
 
@@ -350,90 +372,50 @@ export default function CheckoutPage() {
     setError("");
 
     try {
-      let order: Order;
+      const payload: CheckoutPayload =
+        user
+          ? {
+              shipping_address_id:
+                Number(addressId),
+              payment_method:
+                paymentMethod,
+            }
+          : {
+              ...guest,
+              payment_method:
+                paymentMethod,
+            };
 
-      if (user) {
-        order = await orderApi.checkout({
-          shipping_address_id:
-            Number(addressId),
-          payment_method:
-            paymentMethod,
-        });
-      } else {
-        const response = await api<
-          Order | { data: Order }
-        >("/orders", {
-          method: "POST",
-          body: JSON.stringify({
-            guest_name:
-              guestDetails.name.trim(),
-            guest_phone:
-              guestDetails.phone.trim(),
-            guest_email:
-              guestDetails.email.trim() ||
-              undefined,
-            guest_address_line1:
-              guestDetails.line1.trim(),
-            guest_address_line2:
-              guestDetails.line2.trim() ||
-              undefined,
-            guest_city:
-              guestDetails.city.trim(),
-            guest_area:
-              guestDetails.area.trim(),
-            guest_postal_code:
-              guestDetails.postal_code.trim() ||
-              undefined,
-            guest_notes:
-              notes.trim() || undefined,
-            payment_method:
-              paymentMethod,
-          }),
-        });
+      const order =
+        await orderApi.checkout(payload);
 
-        order =
-          "data" in response
-            ? response.data
-            : response;
-      }
+      await refreshCart();
 
       window.dispatchEvent(
-        new CustomEvent(
-          "shopsphere:cart-updated",
-          {
-            detail: {
-              itemCount: 0,
-            },
-          },
-        ),
+        new Event("cart-updated"),
+      );
+
+      setCart((current) =>
+        current
+          ? {
+              ...current,
+              items: [],
+              subtotal: 0,
+              discount_total: 0,
+              total: 0,
+              item_count: 0,
+            }
+          : current,
       );
 
       if (user) {
         router.push(
           `/orders/${order.id}`,
         );
-      } else {
-        localStorage.removeItem(
-          "guest_token",
-        );
-
-        setCart((current) =>
-          current
-            ? {
-                ...current,
-                items: [],
-                subtotal: 0,
-                discount_total: 0,
-                total: 0,
-                item_count: 0,
-              }
-            : current,
-        );
-
-        setCompletedGuestOrderId(
-          order.id,
-        );
+        return;
       }
+
+      setCompletedOrder(order);
     } catch (error) {
       console.error(
         "Checkout failed:",
@@ -455,10 +437,10 @@ export default function CheckoutPage() {
     return <PageLoader />;
   }
 
-  if (completedGuestOrderId) {
+  if (completedOrder) {
     return (
-      <GuestOrderSuccess
-        orderId={completedGuestOrderId}
+      <OrderSuccess
+        order={completedOrder}
       />
     );
   }
@@ -469,14 +451,12 @@ export default function CheckoutPage() {
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#f4f5ff]">
-      {/* Background grid */}
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(18,19,88,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(18,19,88,0.035)_1px,transparent_1px)] bg-[size:32px_32px]" />
 
       <div className="pointer-events-none absolute -left-40 top-72 h-96 w-96 rounded-full bg-[#121358]/10 blur-3xl" />
 
       <div className="pointer-events-none absolute -right-40 bottom-20 h-96 w-96 rounded-full bg-[#F59E0B]/10 blur-3xl" />
 
-      {/* Checkout hero */}
       <section className="relative overflow-hidden bg-gradient-to-r from-[#080a3d] via-[#121358] to-[#080a3d] text-white">
         <div className="pointer-events-none absolute inset-0 opacity-30">
           <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_49%,rgba(73,91,255,0.22)_50%,transparent_51%),linear-gradient(transparent_49%,rgba(73,91,255,0.15)_50%,transparent_51%)] bg-[size:80px_80px]" />
@@ -530,9 +510,9 @@ export default function CheckoutPage() {
                 </h1>
 
                 <p className="mt-2 max-w-xl text-sm leading-6 text-white/65">
-                  {user
-                    ? "Confirm your shipping address and payment method before placing your order."
-                    : "Enter your delivery information and choose a payment method to place your order."}
+                  {isGuest
+                    ? "Checkout as a guest — no account required."
+                    : "Confirm your shipping address and payment method before placing your order."}
                 </p>
               </div>
             </div>
@@ -546,7 +526,6 @@ export default function CheckoutPage() {
         onSubmit={handleCheckout}
         className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8"
       >
-        {/* Error */}
         {error && (
           <div
             role="alert"
@@ -574,25 +553,15 @@ export default function CheckoutPage() {
         )}
 
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_390px]">
-          {/* Left column */}
           <div className="space-y-6">
-            {/* Shipping address */}
-            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-[#121358]/5">
-              <SectionHeading
-                number="01"
-                eyebrow="Delivery information"
-                title={
-                  user
-                    ? "Shipping Address"
-                    : "Delivery Details"
-                }
-                description={
-                  user
-                    ? "Select where you want your order delivered."
-                    : "Enter the contact and address details needed to deliver your order."
-                }
-                action={
-                  user ? (
+            {user ? (
+              <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-[#121358]/5">
+                <SectionHeading
+                  number="01"
+                  eyebrow="Delivery information"
+                  title="Shipping Address"
+                  description="Select where you want your order delivered."
+                  action={
                     <button
                       type="button"
                       onClick={() =>
@@ -615,357 +584,349 @@ export default function CheckoutPage() {
                         </>
                       )}
                     </button>
-                  ) : undefined
-                }
-              />
+                  }
+                />
 
-              <div className="p-5 sm:p-6">
-                {!user ? (
-                  <div className="rounded-2xl border border-[#121358]/10 bg-[#f8f8ff] p-5 sm:p-6">
-                    <div className="mb-5 flex items-center gap-3">
-                      <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#121358] text-[#F59E0B]">
-                        <FaLocationDot />
-                      </span>
+                <div className="p-5 sm:p-6">
+                  {showAddressForm ? (
+                    <div className="rounded-2xl border border-[#121358]/10 bg-[#f8f8ff] p-5 sm:p-6">
+                      <div className="mb-5 flex items-center gap-3">
+                        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#121358] text-[#F59E0B]">
+                          <FaLocationDot />
+                        </span>
 
-                      <div>
-                        <h3 className="font-black text-[#121358]">
-                          Guest Delivery Information
-                        </h3>
+                        <div>
+                          <h3 className="font-black text-[#121358]">
+                            Add Shipping Address
+                          </h3>
 
-                        <p className="mt-1 text-xs text-slate-500">
-                          No account is required. Enter
-                          the information needed to
-                          deliver this order.
-                        </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Enter your delivery information.
+                          </p>
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <CheckoutInput
-                        label="Full Name"
-                        required
-                        value={guestDetails.name}
-                        onChange={(value) =>
-                          setGuestDetails(
-                            (current) => ({
-                              ...current,
-                              name: value,
-                            }),
-                          )
-                        }
-                        placeholder="Full name"
-                      />
-
-                      <CheckoutInput
-                        label="Phone Number"
-                        required
-                        value={guestDetails.phone}
-                        onChange={(value) =>
-                          setGuestDetails(
-                            (current) => ({
-                              ...current,
-                              phone: value,
-                            }),
-                          )
-                        }
-                        placeholder="Phone number"
-                      />
-
-                      <CheckoutInput
-                        label="Email"
-                        value={guestDetails.email}
-                        onChange={(value) =>
-                          setGuestDetails(
-                            (current) => ({
-                              ...current,
-                              email: value,
-                            }),
-                          )
-                        }
-                        placeholder="Email (optional)"
-                        className="sm:col-span-2"
-                      />
-
-                      <CheckoutInput
-                        label="Address Line 1"
-                        required
-                        value={guestDetails.line1}
-                        onChange={(value) =>
-                          setGuestDetails(
-                            (current) => ({
-                              ...current,
-                              line1: value,
-                            }),
-                          )
-                        }
-                        placeholder="House, road or street"
-                        className="sm:col-span-2"
-                      />
-
-                      <CheckoutInput
-                        label="Address Line 2"
-                        value={guestDetails.line2}
-                        onChange={(value) =>
-                          setGuestDetails(
-                            (current) => ({
-                              ...current,
-                              line2: value,
-                            }),
-                          )
-                        }
-                        placeholder="Apartment, suite or floor"
-                        className="sm:col-span-2"
-                      />
-
-                      <CheckoutInput
-                        label="City"
-                        required
-                        value={guestDetails.city}
-                        onChange={(value) =>
-                          setGuestDetails(
-                            (current) => ({
-                              ...current,
-                              city: value,
-                            }),
-                          )
-                        }
-                        placeholder="City"
-                      />
-
-                      <CheckoutInput
-                        label="Area"
-                        required
-                        value={guestDetails.area}
-                        onChange={(value) =>
-                          setGuestDetails(
-                            (current) => ({
-                              ...current,
-                              area: value,
-                            }),
-                          )
-                        }
-                        placeholder="Area"
-                      />
-
-                      <CheckoutInput
-                        label="Postal Code"
-                        value={
-                          guestDetails.postal_code
-                        }
-                        onChange={(value) =>
-                          setGuestDetails(
-                            (current) => ({
-                              ...current,
-                              postal_code: value,
-                            }),
-                          )
-                        }
-                        placeholder="Postal code (optional)"
-                      />
-                    </div>
-                  </div>
-                ) : showAddressForm ? (
-                  <div className="rounded-2xl border border-[#121358]/10 bg-[#f8f8ff] p-5 sm:p-6">
-                    <div className="mb-5 flex items-center gap-3">
-                      <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#121358] text-[#F59E0B]">
-                        <FaLocationDot />
-                      </span>
-
-                      <div>
-                        <h3 className="font-black text-[#121358]">
-                          Add Shipping Address
-                        </h3>
-
-                        <p className="mt-1 text-xs text-slate-500">
-                          Enter your delivery
-                          information.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <CheckoutInput
-                        label="Address Label"
-                        value={
-                          newAddress.label
-                        }
-                        onChange={(value) =>
-                          setNewAddress(
-                            (current) => ({
-                              ...current,
-                              label: value,
-                            }),
-                          )
-                        }
-                        placeholder="Home"
-                      />
-
-                      <CheckoutInput
-                        label="Country"
-                        required
-                        value={
-                          newAddress.country
-                        }
-                        onChange={(value) =>
-                          setNewAddress(
-                            (current) => ({
-                              ...current,
-                              country: value,
-                            }),
-                          )
-                        }
-                        placeholder="US"
-                      />
-
-                      <CheckoutInput
-                        label="Address Line 1"
-                        required
-                        value={
-                          newAddress.line1
-                        }
-                        onChange={(value) =>
-                          setNewAddress(
-                            (current) => ({
-                              ...current,
-                              line1: value,
-                            }),
-                          )
-                        }
-                        placeholder="House, road or street"
-                        className="sm:col-span-2"
-                      />
-
-                      <CheckoutInput
-                        label="Address Line 2"
-                        value={
-                          newAddress.line2
-                        }
-                        onChange={(value) =>
-                          setNewAddress(
-                            (current) => ({
-                              ...current,
-                              line2: value,
-                            }),
-                          )
-                        }
-                        placeholder="Apartment, suite or floor"
-                        className="sm:col-span-2"
-                      />
-
-                      <CheckoutInput
-                        label="City"
-                        required
-                        value={
-                          newAddress.city
-                        }
-                        onChange={(value) =>
-                          setNewAddress(
-                            (current) => ({
-                              ...current,
-                              city: value,
-                            }),
-                          )
-                        }
-                        placeholder="City"
-                      />
-
-                      <CheckoutInput
-                        label="Postal Code"
-                        required
-                        value={
-                          newAddress.postal_code
-                        }
-                        onChange={(value) =>
-                          setNewAddress(
-                            (current) => ({
-                              ...current,
-                              postal_code:
-                                value,
-                            }),
-                          )
-                        }
-                        placeholder="Postal code"
-                      />
-                    </div>
-
-                    <label className="mt-5 flex cursor-pointer items-center gap-3 rounded-xl border border-[#121358]/10 bg-white px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={
-                          newAddress.is_default
-                        }
-                        onChange={(event) =>
-                          setNewAddress(
-                            (current) => ({
-                              ...current,
-                              is_default:
-                                event.target
-                                  .checked,
-                            }),
-                          )
-                        }
-                        className="h-4 w-4 accent-[#F59E0B]"
-                      />
-
-                      <span className="text-sm font-semibold text-[#121358]">
-                        Save as my default address
-                      </span>
-                    </label>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void handleAddAddress()
-                      }
-                      disabled={
-                        savingAddress
-                      }
-                      className="mt-5 flex w-full items-center justify-center gap-3 rounded-xl bg-[#121358] px-5 py-3.5 text-sm font-black text-white transition hover:bg-[#292c82] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {savingAddress ? (
-                        <>
-                          <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-[#F59E0B]" />
-                          Saving Address...
-                        </>
-                      ) : (
-                        <>
-                          <FaCheck />
-                          Save Address
-                        </>
-                      )}
-                    </button>
-                  </div>
-                ) : addresses.length === 0 ? (
-                  <NoAddress
-                    onAdd={() =>
-                      setShowAddressForm(true)
-                    }
-                  />
-                ) : (
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {addresses.map(
-                      (address) => (
-                        <AddressCard
-                          key={address.id}
-                          address={address}
-                          selected={
-                            addressId ===
-                            address.id
-                          }
-                          onSelect={() =>
-                            setAddressId(
-                              address.id,
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <CheckoutInput
+                          label="Address Label"
+                          value={newAddress.label}
+                          onChange={(value) =>
+                            setNewAddress(
+                              (current) => ({
+                                ...current,
+                                label: value,
+                              }),
                             )
                           }
+                          placeholder="Home"
                         />
-                      ),
-                    )}
-                  </div>
-                )}
-              </div>
-            </section>
 
-            {/* Payment method */}
+                        <CheckoutInput
+                          label="Country"
+                          required
+                          value={newAddress.country}
+                          onChange={(value) =>
+                            setNewAddress(
+                              (current) => ({
+                                ...current,
+                                country: value,
+                              }),
+                            )
+                          }
+                          placeholder="Bangladesh"
+                        />
+
+                        <CheckoutInput
+                          label="Address Line 1"
+                          required
+                          value={newAddress.line1}
+                          onChange={(value) =>
+                            setNewAddress(
+                              (current) => ({
+                                ...current,
+                                line1: value,
+                              }),
+                            )
+                          }
+                          placeholder="House, road or street"
+                          className="sm:col-span-2"
+                        />
+
+                        <CheckoutInput
+                          label="Address Line 2"
+                          value={newAddress.line2}
+                          onChange={(value) =>
+                            setNewAddress(
+                              (current) => ({
+                                ...current,
+                                line2: value,
+                              }),
+                            )
+                          }
+                          placeholder="Apartment, suite or floor"
+                          className="sm:col-span-2"
+                        />
+
+                        <CheckoutInput
+                          label="City"
+                          required
+                          value={newAddress.city}
+                          onChange={(value) =>
+                            setNewAddress(
+                              (current) => ({
+                                ...current,
+                                city: value,
+                              }),
+                            )
+                          }
+                          placeholder="City"
+                        />
+
+                        <CheckoutInput
+                          label="Postal Code"
+                          required
+                          value={
+                            newAddress.postal_code
+                          }
+                          onChange={(value) =>
+                            setNewAddress(
+                              (current) => ({
+                                ...current,
+                                postal_code:
+                                  value,
+                              }),
+                            )
+                          }
+                          placeholder="Postal code"
+                        />
+                      </div>
+
+                      <label className="mt-5 flex cursor-pointer items-center gap-3 rounded-xl border border-[#121358]/10 bg-white px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={
+                            newAddress.is_default
+                          }
+                          onChange={(event) =>
+                            setNewAddress(
+                              (current) => ({
+                                ...current,
+                                is_default:
+                                  event.target
+                                    .checked,
+                              }),
+                            )
+                          }
+                          className="h-4 w-4 accent-[#F59E0B]"
+                        />
+
+                        <span className="text-sm font-semibold text-[#121358]">
+                          Save as my default address
+                        </span>
+                      </label>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void handleAddAddress()
+                        }
+                        disabled={
+                          savingAddress
+                        }
+                        className="mt-5 flex w-full items-center justify-center gap-3 rounded-xl bg-[#121358] px-5 py-3.5 text-sm font-black text-white transition hover:bg-[#292c82] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {savingAddress ? (
+                          <>
+                            <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-[#F59E0B]" />
+                            Saving Address...
+                          </>
+                        ) : (
+                          <>
+                            <FaCheck />
+                            Save Address
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  ) : addresses.length === 0 ? (
+                    <NoAddress
+                      onAdd={() =>
+                        setShowAddressForm(
+                          true,
+                        )
+                      }
+                    />
+                  ) : (
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      {addresses.map(
+                        (address) => (
+                          <AddressCard
+                            key={address.id}
+                            address={address}
+                            selected={
+                              addressId ===
+                              address.id
+                            }
+                            onSelect={() =>
+                              setAddressId(
+                                address.id,
+                              )
+                            }
+                          />
+                        ),
+                      )}
+                    </div>
+                  )}
+                </div>
+              </section>
+            ) : (
+              <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-[#121358]/5">
+                <SectionHeading
+                  number="01"
+                  eyebrow="Guest checkout"
+                  title="Customer & Delivery Information"
+                  description="No account is required. Enter your information below."
+                />
+
+                <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
+                  <CheckoutInput
+                    label="Full Name"
+                    required
+                    value={guest.guest_name}
+                    onChange={(value) =>
+                      setGuest(
+                        (current) => ({
+                          ...current,
+                          guest_name: value,
+                        }),
+                      )
+                    }
+                    placeholder="Your full name"
+                  />
+
+                  <CheckoutInput
+                    label="Phone Number"
+                    required
+                    value={guest.guest_phone}
+                    onChange={(value) =>
+                      setGuest(
+                        (current) => ({
+                          ...current,
+                          guest_phone: value,
+                        }),
+                      )
+                    }
+                    placeholder="01XXXXXXXXX"
+                  />
+
+                  <CheckoutInput
+                    label="Email Address"
+                    required
+                    type="email"
+                    value={guest.guest_email}
+                    onChange={(value) =>
+                      setGuest(
+                        (current) => ({
+                          ...current,
+                          guest_email: value,
+                        }),
+                      )
+                    }
+                    placeholder="you@example.com"
+                    className="sm:col-span-2"
+                  />
+
+                  <CheckoutInput
+                    label="Address Line 1"
+                    required
+                    value={
+                      guest.guest_address_line1
+                    }
+                    onChange={(value) =>
+                      setGuest(
+                        (current) => ({
+                          ...current,
+                          guest_address_line1:
+                            value,
+                        }),
+                      )
+                    }
+                    placeholder="House, road or street"
+                    className="sm:col-span-2"
+                  />
+
+                  <CheckoutInput
+                    label="Address Line 2"
+                    value={
+                      guest.guest_address_line2
+                    }
+                    onChange={(value) =>
+                      setGuest(
+                        (current) => ({
+                          ...current,
+                          guest_address_line2:
+                            value,
+                        }),
+                      )
+                    }
+                    placeholder="Apartment, suite or floor"
+                    className="sm:col-span-2"
+                  />
+
+                  <CheckoutInput
+                    label="City"
+                    required
+                    value={guest.guest_city}
+                    onChange={(value) =>
+                      setGuest(
+                        (current) => ({
+                          ...current,
+                          guest_city: value,
+                        }),
+                      )
+                    }
+                    placeholder="City"
+                  />
+
+                  <CheckoutInput
+                    label="Postal Code"
+                    required
+                    value={
+                      guest.guest_postal_code
+                    }
+                    onChange={(value) =>
+                      setGuest(
+                        (current) => ({
+                          ...current,
+                          guest_postal_code:
+                            value,
+                        }),
+                      )
+                    }
+                    placeholder="Postal code"
+                  />
+
+                  <CheckoutInput
+                    label="Country"
+                    required
+                    value={
+                      guest.guest_country
+                    }
+                    onChange={(value) =>
+                      setGuest(
+                        (current) => ({
+                          ...current,
+                          guest_country: value,
+                        }),
+                      )
+                    }
+                    placeholder="Bangladesh"
+                    className="sm:col-span-2"
+                  />
+                </div>
+              </section>
+            )}
+
             <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-[#121358]/5">
               <SectionHeading
                 number="02"
@@ -1001,7 +962,7 @@ export default function CheckoutPage() {
                     }
                     icon={<FaCreditCard />}
                     title="Online Payment"
-                    description="Continue using the configured stub gateway."
+                    description="Continue using the configured payment gateway."
                     badge="Gateway"
                     onClick={() =>
                       setPaymentMethod(
@@ -1011,44 +972,16 @@ export default function CheckoutPage() {
                   />
                 </div>
 
-                <div className="mt-6">
-                  <label
-                    htmlFor="order-notes"
-                    className="mb-2 block text-sm font-bold text-[#121358]"
-                  >
-                    Order Notes
-                    <span className="ml-1 font-normal text-slate-400">
-                      (optional)
-                    </span>
-                  </label>
-
-                  <textarea
-                    id="order-notes"
-                    rows={4}
-                    value={notes}
-                    onChange={(event) =>
-                      setNotes(
-                        event.target.value,
-                      )
-                    }
-                    placeholder="Add delivery instructions or other notes..."
-                    className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#F59E0B] focus:bg-white focus:ring-4 focus:ring-[#F59E0B]/10"
-                  />
-                </div>
-
                 <div className="mt-5 flex items-start gap-3 rounded-xl border border-[#121358]/10 bg-[#f4f5ff] px-4 py-3">
                   <FaShieldHalved className="mt-0.5 shrink-0 text-[#121358]" />
 
                   <p className="text-xs leading-5 text-slate-600">
-                    Your order information is
-                    securely submitted through the
-                    ShopSphere Laravel backend.
+                    Your order information is securely submitted through the ShopSphere Laravel backend.
                   </p>
                 </div>
               </div>
             </section>
 
-            {/* Return to cart */}
             <section className="rounded-2xl bg-gradient-to-r from-[#121358] to-[#292c82] p-6 text-white shadow-xl">
               <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex gap-4">
@@ -1062,9 +995,7 @@ export default function CheckoutPage() {
                     </h2>
 
                     <p className="mt-1 text-sm leading-6 text-white/65">
-                      Check your address, payment
-                      method and order total before
-                      submitting.
+                      Review your delivery information, payment method and order total before submitting.
                     </p>
                   </div>
                 </div>
@@ -1080,7 +1011,6 @@ export default function CheckoutPage() {
             </section>
           </div>
 
-          {/* Order summary */}
           <aside className="lg:sticky lg:top-28">
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-[#121358]/10">
               <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-5">
@@ -1119,8 +1049,7 @@ export default function CheckoutPage() {
 
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-black text-[#121358]">
-                          {item.product
-                            ?.name ||
+                          {item.product?.name ||
                             "Product"}
                         </p>
 
@@ -1174,38 +1103,8 @@ export default function CheckoutPage() {
                   </p>
                 </div>
 
-                {user && selectedAddress && (
-                  <div className="mt-5 rounded-xl border border-[#121358]/10 bg-[#f8f8ff] p-4">
-                    <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-[#121358]">
-                      <FaLocationDot className="text-[#F59E0B]" />
-                      Delivering to
-                    </p>
-
-                    <p className="mt-2 text-sm font-bold text-slate-700">
-                      {selectedAddress.label ||
-                        "Address"}
-                    </p>
-
-                    <p className="mt-1 text-xs leading-5 text-slate-500">
-                      {selectedAddress.line1}
-                      {selectedAddress.line2
-                        ? `, ${selectedAddress.line2}`
-                        : ""}
-                      <br />
-                      {selectedAddress.city},{" "}
-                      {
-                        selectedAddress.postal_code
-                      }
-                      <br />
-                      {
-                        selectedAddress.country
-                      }
-                    </p>
-                  </div>
-                )}
-
-                {!user &&
-                  guestDetails.line1.trim() && (
+                {user &&
+                  selectedAddress && (
                     <div className="mt-5 rounded-xl border border-[#121358]/10 bg-[#f8f8ff] p-4">
                       <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-[#121358]">
                         <FaLocationDot className="text-[#F59E0B]" />
@@ -1213,37 +1112,53 @@ export default function CheckoutPage() {
                       </p>
 
                       <p className="mt-2 text-sm font-bold text-slate-700">
-                        {guestDetails.name ||
-                          "Guest Customer"}
+                        {selectedAddress.label ||
+                          "Address"}
                       </p>
 
                       <p className="mt-1 text-xs leading-5 text-slate-500">
-                        {guestDetails.line1}
-                        {guestDetails.line2
-                          ? `, ${guestDetails.line2}`
+                        {
+                          selectedAddress.line1
+                        }
+                        {selectedAddress.line2
+                          ? `, ${selectedAddress.line2}`
                           : ""}
                         <br />
-                        {guestDetails.area}
-                        {guestDetails.area &&
-                        guestDetails.city
-                          ? ", "
-                          : ""}
-                        {guestDetails.city}
-                        {guestDetails.postal_code
-                          ? `, ${guestDetails.postal_code}`
-                          : ""}
+                        {
+                          selectedAddress.city
+                        }
+                        ,{" "}
+                        {
+                          selectedAddress.postal_code
+                        }
+                        <br />
+                        {
+                          selectedAddress.country
+                        }
                       </p>
                     </div>
                   )}
+
+                {!user && (
+                  <div className="mt-5 rounded-xl border border-[#121358]/10 bg-[#f8f8ff] p-4">
+                    <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-[#121358]">
+                      <FaLocationDot className="text-[#F59E0B]" />
+                      Guest Checkout
+                    </p>
+
+                    <p className="mt-2 text-xs leading-5 text-slate-500">
+                      No login is required. Your delivery details will be attached to this order.
+                    </p>
+                  </div>
+                )}
 
                 <button
                   type="submit"
                   disabled={
                     submitting ||
                     savingAddress ||
-                    (user
-                      ? !addressId
-                      : !guestDetailsReady)
+                    (Boolean(user) &&
+                      !addressId)
                   }
                   className="group relative mt-5 flex w-full items-center justify-center gap-3 overflow-hidden rounded-xl bg-gradient-to-r from-[#F59E0B] to-orange-500 px-5 py-4 text-sm font-black text-white shadow-lg shadow-orange-500/25 transition hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:from-slate-300 disabled:to-slate-400 disabled:shadow-none disabled:hover:translate-y-0"
                 >
@@ -1303,7 +1218,6 @@ export default function CheckoutPage() {
           </aside>
         </div>
 
-        {/* Benefits */}
         <section className="mt-8 grid overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm sm:grid-cols-2 lg:grid-cols-4">
           <TrustItem
             icon={<FaTruckFast />}
@@ -1454,6 +1368,7 @@ type CheckoutInputProps = {
   placeholder?: string;
   required?: boolean;
   className?: string;
+  type?: "text" | "email" | "tel";
 };
 
 function CheckoutInput({
@@ -1463,6 +1378,7 @@ function CheckoutInput({
   placeholder,
   required = false,
   className = "",
+  type = "text",
 }: CheckoutInputProps) {
   return (
     <label className={className}>
@@ -1477,7 +1393,7 @@ function CheckoutInput({
       </span>
 
       <input
-        type="text"
+        type={type}
         value={value}
         required={required}
         placeholder={placeholder}
@@ -1642,8 +1558,7 @@ function NoAddress({
       </h3>
 
       <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
-        Add a shipping address before
-        continuing with checkout.
+        Add a shipping address before continuing with checkout.
       </p>
 
       <button
@@ -1658,42 +1573,49 @@ function NoAddress({
   );
 }
 
-function GuestOrderSuccess({
-  orderId,
+function OrderSuccess({
+  order,
 }: {
-  orderId: number;
+  order: Order;
 }) {
   return (
     <main className="relative flex min-h-[75vh] items-center justify-center overflow-hidden bg-[#f4f5ff] px-4 py-16">
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(18,19,88,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(18,19,88,0.035)_1px,transparent_1px)] bg-[size:32px_32px]" />
 
       <section className="relative mx-auto max-w-2xl rounded-3xl border border-white bg-white p-8 text-center shadow-2xl shadow-[#121358]/10 sm:p-14">
-        <span className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-100 text-3xl text-emerald-600">
+        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-100 text-3xl text-emerald-600">
           <FaCheck />
-        </span>
+        </div>
 
-        <p className="mt-8 text-xs font-black uppercase tracking-[0.22em] text-[#F59E0B]">
-          Order confirmed
+        <p className="mt-7 text-xs font-black uppercase tracking-[0.22em] text-[#F59E0B]">
+          Order completed
         </p>
 
         <h1 className="mt-3 text-3xl font-black text-[#121358]">
-          Thank You for Your Order
+          Thank you for your order
         </h1>
 
         <p className="mx-auto mt-4 max-w-md text-sm leading-7 text-slate-500">
-          Your order has been placed successfully.
-          Your order number is{" "}
-          <span className="font-black text-[#121358]">
-            #{String(orderId).padStart(6, "0")}
-          </span>
-          .
+          Your guest order has been placed successfully.
         </p>
+
+        <div className="mx-auto mt-6 max-w-sm rounded-2xl bg-[#f4f5ff] p-5">
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+            Order Number
+          </p>
+
+          <p className="mt-2 text-2xl font-black text-[#121358]">
+            #{String(order.id).padStart(
+              6,
+              "0",
+            )}
+          </p>
+        </div>
 
         <Link
           href="/products"
           className="mt-8 inline-flex items-center gap-3 rounded-2xl bg-gradient-to-r from-[#F59E0B] to-orange-500 px-7 py-3.5 text-sm font-black text-white shadow-lg transition hover:-translate-y-1 hover:shadow-xl"
         >
-          <FaBoxOpen />
           Continue Shopping
           <FaChevronRight size={11} />
         </Link>
@@ -1729,8 +1651,7 @@ function EmptyCheckout() {
         </h1>
 
         <p className="mx-auto mt-4 max-w-md text-sm leading-7 text-slate-500">
-          Add products to your shopping cart
-          before continuing to checkout.
+          Add products to your shopping cart before continuing to checkout.
         </p>
 
         <Link

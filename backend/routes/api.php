@@ -1,14 +1,14 @@
 <?php
 
-use App\Http\Controllers\Api\BannerController;
-use App\Http\Controllers\Api\Admin\BannerController as AdminBannerController;
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BusinessSettingController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\QuotationController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
@@ -20,10 +20,25 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::prefix('auth')->group(function () {
-    Route::post('/register', [AuthController::class, 'register']);
-    Route::post('/login', [AuthController::class, 'login']);
-    Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
-    Route::post('/verify-email', [AuthController::class, 'verifyEmail']);
+    Route::post('/register', [
+        AuthController::class,
+        'register',
+    ]);
+
+    Route::post('/login', [
+        AuthController::class,
+        'login',
+    ]);
+
+    Route::post('/forgot-password', [
+        AuthController::class,
+        'forgotPassword',
+    ]);
+
+    Route::post('/verify-email', [
+        AuthController::class,
+        'verifyEmail',
+    ]);
 
     Route::middleware('auth:sanctum')
         ->group(function () {
@@ -61,12 +76,22 @@ Route::middleware('auth:sanctum')
 
 /*
 |--------------------------------------------------------------------------
-| Banner Routes
+| Business Settings Routes
 |--------------------------------------------------------------------------
 */
 
-// Public banner routes.
-Route::get('/banners', [BannerController::class, 'index']);
+Route::get('/business-settings', [
+    BusinessSettingController::class,
+    'show',
+]);
+
+Route::middleware([
+    'auth:sanctum',
+    'admin',
+])->put('/admin/business-settings', [
+    BusinessSettingController::class,
+    'update',
+]);
 
 /*
 |--------------------------------------------------------------------------
@@ -74,20 +99,48 @@ Route::get('/banners', [BannerController::class, 'index']);
 |--------------------------------------------------------------------------
 */
 
-// Customer storefront routes.
-// These routes show only active products.
-Route::get('/products', [ProductController::class, 'index']);
-Route::get('/products/{product}', [ProductController::class, 'show']);
+// Public storefront
+Route::get('/products', [
+    ProductController::class,
+    'index',
+]);
 
-// Admin product-management routes.
-Route::middleware(['auth:sanctum', 'admin'])
+Route::get('/products/{product}', [
+    ProductController::class,
+    'show',
+]);
+
+// Admin product management
+Route::middleware([
+    'auth:sanctum',
+    'admin',
+])
     ->prefix('admin')
     ->group(function () {
-        Route::get('/products', [ProductController::class, 'adminIndex']);
-        Route::get('/products/{product}', [ProductController::class, 'adminShow']);
-        Route::post('/products', [ProductController::class, 'store']);
-        Route::put('/products/{product}', [ProductController::class, 'update']);
-        Route::delete('/products/{product}', [ProductController::class, 'destroy']);
+        Route::get('/products', [
+            ProductController::class,
+            'adminIndex',
+        ]);
+
+        Route::get('/products/{product}', [
+            ProductController::class,
+            'adminShow',
+        ]);
+
+        Route::post('/products', [
+            ProductController::class,
+            'store',
+        ]);
+
+        Route::put('/products/{product}', [
+            ProductController::class,
+            'update',
+        ]);
+
+        Route::delete('/products/{product}', [
+            ProductController::class,
+            'destroy',
+        ]);
     });
 
 /*
@@ -127,13 +180,8 @@ Route::middleware([
 | Cart Routes
 |--------------------------------------------------------------------------
 |
-| These routes are public.
-|
-| Logged-in customer:
-|   CartResolver uses user_id.
-|
-| Guest customer:
-|   CartResolver uses X-Guest-Token.
+| Guest and logged-in customers can use the cart.
+| Guests are identified by X-Guest-Cart-Token.
 |
 */
 
@@ -158,6 +206,11 @@ Route::prefix('cart')
             CartController::class,
             'remove',
         ]);
+
+        Route::delete('/clear', [
+            CartController::class,
+            'clear',
+        ]);
     });
 
 /*
@@ -166,28 +219,11 @@ Route::prefix('cart')
 |--------------------------------------------------------------------------
 */
 
-/*
- * Public checkout.
- *
- * Logged-in customer:
- * - Bearer token
- * - shipping_address_id
- *
- * Guest customer:
- * - X-Guest-Token
- * - guest_name
- * - guest_phone
- * - guest address information
- */
 Route::post('/orders', [
     OrderController::class,
     'store',
 ]);
 
-/*
- * Customer order history / viewing / cancellation
- * still requires authentication.
- */
 Route::middleware('auth:sanctum')
     ->prefix('orders')
     ->group(function () {
@@ -207,9 +243,6 @@ Route::middleware('auth:sanctum')
         ]);
     });
 
-/*
- * Admin-only order status management.
- */
 Route::middleware([
     'auth:sanctum',
     'admin',
@@ -218,6 +251,39 @@ Route::middleware([
         OrderController::class,
         'updateStatus',
     ]);
+
+/*
+|--------------------------------------------------------------------------
+| Quotation Routes
+|--------------------------------------------------------------------------
+*/
+
+Route::post('/quotations', [
+    QuotationController::class,
+    'store',
+]);
+
+Route::middleware([
+    'auth:sanctum',
+    'admin',
+])
+    ->prefix('admin/quotations')
+    ->group(function () {
+        Route::get('/', [
+            QuotationController::class,
+            'index',
+        ]);
+
+        Route::get('/{quotationRequest}', [
+            QuotationController::class,
+            'show',
+        ]);
+
+        Route::put('/{quotationRequest}', [
+            QuotationController::class,
+            'updateStatus',
+        ]);
+    });
 
 /*
 |--------------------------------------------------------------------------
@@ -253,15 +319,17 @@ Route::middleware('auth:sanctum')
 Route::post('/reviews', [
     ReviewController::class,
     'store',
-])
-    ->middleware('auth:sanctum');
+])->middleware('auth:sanctum');
 
 Route::get('/reviews/product/{product}', [
     ReviewController::class,
     'forProduct',
 ]);
 
-Route::middleware(['auth:sanctum', 'admin'])
+Route::middleware([
+    'auth:sanctum',
+    'admin',
+])
     ->put('/reviews/{review}/moderate', [
         ReviewController::class,
         'moderate',
@@ -288,55 +356,4 @@ Route::middleware([
             AdminController::class,
             'reviews',
         ]);
-
-        /*
-        |--------------------------------------------------------------------------
-        | Admin Banner Routes
-        |--------------------------------------------------------------------------
-        */
-
-        Route::get('/banners', [
-            AdminBannerController::class,
-            'index',
-        ]);
-
-        Route::get('/banners/{banner}', [
-            AdminBannerController::class,
-            'show',
-        ]);
-
-        Route::post('/banners', [
-            AdminBannerController::class,
-            'store',
-        ]);
-
-        Route::put('/banners/{banner}', [
-            AdminBannerController::class,
-            'update',
-        ]);
-
-        Route::delete('/banners/{banner}', [
-            AdminBannerController::class,
-            'destroy',
-        ]);
-    });
-
-/*
-|--------------------------------------------------------------------------
-| Additional Admin Product Routes
-|--------------------------------------------------------------------------
-*/
-
-Route::middleware('auth:sanctum')
-    ->prefix('admin')
-    ->group(function () {
-        Route::get(
-            '/products',
-            [ProductController::class, 'adminIndex'],
-        );
-
-        Route::post(
-            '/products',
-            [ProductController::class, 'store'],
-        );
     });

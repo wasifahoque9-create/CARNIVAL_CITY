@@ -12,33 +12,45 @@ use Illuminate\Validation\ValidationException;
 
 class CartService
 {
-    /*
-     * Existing logged-in customer behavior remains unchanged.
+    /**
+     * Get or create cart for either:
+     * - Logged-in user
+     * - Guest customer using guest token
      */
-    public function getOrCreateCart(User $user): Cart
-    {
+    public function getOrCreateCart(
+        ?User $user,
+        ?string $guestToken = null
+    ): Cart {
+        if ($user) {
+            return Cart::firstOrCreate([
+                'user_id' => $user->id,
+            ]);
+        }
+
+        if (!$guestToken) {
+            throw ValidationException::withMessages([
+                'guest_token' => [
+                    'Guest cart token is required.',
+                ],
+            ]);
+        }
+
         return Cart::firstOrCreate([
-            'user_id' => $user->id,
+            'guest_token' => $guestToken,
         ]);
     }
 
-    /*
-     * Accept either:
-     * - a registered User
-     * - a Cart already resolved for a guest
+    /**
+     * Get cart summary.
      */
-    private function resolveCart(User|Cart $owner): Cart
-    {
-        if ($owner instanceof Cart) {
-            return $owner;
-        }
-
-        return $this->getOrCreateCart($owner);
-    }
-
-    public function getCartSummary(User|Cart $owner): array
-    {
-        $cart = $this->resolveCart($owner);
+    public function getCartSummary(
+        ?User $user,
+        ?string $guestToken = null
+    ): array {
+        $cart = $this->getOrCreateCart(
+            $user,
+            $guestToken
+        );
 
         $cart->load([
             'items.product',
@@ -53,15 +65,18 @@ class CartService
 
             $subtotal += $lineTotal;
 
-            if ($item->product->discount_price) {
+            if (
+                $item->product &&
+                $item->product->discount_price
+            ) {
                 $regular =
-                    (float) $item->product->price
-                    * $item->quantity;
+                    (float) $item->product->price *
+                    $item->quantity;
 
                 if ($item->variant) {
                     $regular +=
-                        (float) $item->variant->price_adjustment
-                        * $item->quantity;
+                        (float) $item->variant->price_adjustment *
+                        $item->quantity;
                 }
 
                 $discountTotal += max(
@@ -73,29 +88,24 @@ class CartService
 
         return [
             'cart' => $cart,
-
-            'subtotal' => round(
-                $subtotal,
-                2
-            ),
-
+            'subtotal' => round($subtotal, 2),
             'discount_total' => round(
                 $discountTotal,
                 2
             ),
-
-            'total' => round(
-                $subtotal,
-                2
+            'total' => round($subtotal, 2),
+            'item_count' => $cart->items->sum(
+                'quantity'
             ),
-
-            'item_count' =>
-                $cart->items->sum('quantity'),
         ];
     }
 
+    /**
+     * Add product to cart.
+     */
     public function addItem(
-        User|Cart $owner,
+        ?User $user,
+        ?string $guestToken,
         int $productId,
         ?int $variantId,
         int $quantity
@@ -123,19 +133,22 @@ class CartService
                 ->findOrFail($variantId);
 
             $this->assertStock(
-                $variant->stock_qty,
+                (int) $variant->stock_qty,
                 $quantity,
                 'Selected variant is out of stock.'
             );
         } else {
             $this->assertStock(
-                $product->stock_qty,
+                (int) $product->stock_qty,
                 $quantity,
                 'Product is out of stock.'
             );
         }
 
-        $cart = $this->resolveCart($owner);
+        $cart = $this->getOrCreateCart(
+            $user,
+            $guestToken
+        );
 
         return DB::transaction(
             function () use (
@@ -145,26 +158,28 @@ class CartService
                 $quantity
             ) {
                 $item = CartItem::query()
-                    ->where([
-                        'cart_id' =>
-                            $cart->id,
-
-                        'product_id' =>
-                            $product->id,
-
-                        'product_variant_id' =>
-                            $variant?->id,
-                    ])
+                    ->where(
+                        'cart_id',
+                        $cart->id
+                    )
+                    ->where(
+                        'product_id',
+                        $product->id
+                    )
+                    ->where(
+                        'product_variant_id',
+                        $variant?->id
+                    )
                     ->first();
 
                 if ($item) {
                     $newQty =
-                        $item->quantity
-                        + $quantity;
+                        (int) $item->quantity +
+                        $quantity;
 
                     $available = $variant
-                        ? $variant->stock_qty
-                        : $product->stock_qty;
+                        ? (int) $variant->stock_qty
+                        : (int) $product->stock_qty;
 
                     $this->assertStock(
                         $available,
@@ -177,17 +192,11 @@ class CartService
                     ]);
                 } else {
                     CartItem::create([
-                        'cart_id' =>
-                            $cart->id,
-
-                        'product_id' =>
-                            $product->id,
-
+                        'cart_id' => $cart->id,
+                        'product_id' => $product->id,
                         'product_variant_id' =>
                             $variant?->id,
-
-                        'quantity' =>
-                            $quantity,
+                        'quantity' => $quantity,
                     ]);
                 }
 
@@ -199,12 +208,27 @@ class CartService
         );
     }
 
+    /**
+     * Update cart item quantity.
+     */
     public function updateItem(
-        User|Cart $owner,
+        ?User $user,
+        ?string $guestToken,
         int $cartItemId,
         int $quantity
     ): Cart {
-        $cart = $this->resolveCart($owner);
+        if ($quantity <= 0) {
+            throw ValidationException::withMessages([
+                'quantity' => [
+                    'Quantity must be at least 1.',
+                ],
+            ]);
+        }
+
+        $cart = $this->getOrCreateCart(
+            $user,
+            $guestToken
+        );
 
         $item = CartItem::query()
             ->where(
@@ -217,17 +241,9 @@ class CartService
             ])
             ->findOrFail($cartItemId);
 
-        if ($quantity <= 0) {
-            throw ValidationException::withMessages([
-                'quantity' => [
-                    'Quantity must be at least 1.',
-                ],
-            ]);
-        }
-
         $available = $item->variant
-            ? $item->variant->stock_qty
-            : $item->product->stock_qty;
+            ? (int) $item->variant->stock_qty
+            : (int) $item->product->stock_qty;
 
         $this->assertStock(
             $available,
@@ -245,11 +261,18 @@ class CartService
         ]);
     }
 
+    /**
+     * Remove item from cart.
+     */
     public function removeItem(
-        User|Cart $owner,
+        ?User $user,
+        ?string $guestToken,
         int $cartItemId
     ): Cart {
-        $cart = $this->resolveCart($owner);
+        $cart = $this->getOrCreateCart(
+            $user,
+            $guestToken
+        );
 
         CartItem::query()
             ->where(
@@ -268,14 +291,24 @@ class CartService
         ]);
     }
 
+    /**
+     * Clear all cart items.
+     */
     public function clearCart(
-        User|Cart $owner
+        ?User $user,
+        ?string $guestToken = null
     ): void {
-        $cart = $this->resolveCart($owner);
+        $cart = $this->getOrCreateCart(
+            $user,
+            $guestToken
+        );
 
         $cart->items()->delete();
     }
 
+    /**
+     * Check available stock.
+     */
     private function assertStock(
         int $available,
         int $requested,

@@ -1,17 +1,10 @@
 "use client";
 
 import Link from "next/link";
-
 import { useState, type MouseEvent } from "react";
 
-import {
-  cartApi,
-  formatPrice,
-  STORAGE_BASE,
-} from "@/lib/api";
-
+import { cartApi, formatPrice, STORAGE_BASE } from "@/lib/api";
 import { useCart } from "@/lib/cart";
-
 import type { Product } from "@/types";
 
 /*
@@ -21,38 +14,29 @@ import type { Product } from "@/types";
 */
 
 function normalizeImageUrl(url: string): string {
-  return encodeURI(
-    url.replace("http://", "https://"),
-  )
+  return encodeURI(url.replace("http://", "https://"))
     .replace(/\(/g, "%28")
     .replace(/\)/g, "%29");
 }
 
-function getProductImageUrl(
-  product: Product,
-): string {
+function getProductImageUrl(product: Product): string {
   const image =
-    product.images?.find(
-      (item) => item.is_primary,
-    ) ?? product.images?.[0];
+    product.images?.find((item) => item.is_primary) ??
+    product.images?.[0];
 
   if (!image) {
     return "/placeholder-product.svg";
   }
 
   if (image.image_path) {
-    const cleanPath =
-      image.image_path.trim();
+    const cleanPath = image.image_path.trim();
 
     if (/^https?:\/\//i.test(cleanPath)) {
       return normalizeImageUrl(cleanPath);
     }
 
     return normalizeImageUrl(
-      `${STORAGE_BASE}/${cleanPath.replace(
-        /^\/+/,
-        "",
-      )}`,
+      `${STORAGE_BASE}/${cleanPath.replace(/^\/+/, "")}`,
     );
   }
 
@@ -69,16 +53,9 @@ function getProductImageUrl(
 |--------------------------------------------------------------------------
 */
 
-function getDiscountPercentage(
-  product: Product,
-): number | null {
-  const regularPrice = Number(
-    product.price,
-  );
-
-  const discountPrice = Number(
-    product.discount_price,
-  );
+function getDiscountPercentage(product: Product): number | null {
+  const regularPrice = Number(product.price);
+  const discountPrice = Number(product.discount_price);
 
   if (
     !product.discount_price ||
@@ -89,9 +66,7 @@ function getDiscountPercentage(
   }
 
   return Math.round(
-    ((regularPrice - discountPrice) /
-      regularPrice) *
-      100,
+    ((regularPrice - discountPrice) / regularPrice) * 100,
   );
 }
 
@@ -101,73 +76,42 @@ function getDiscountPercentage(
 |--------------------------------------------------------------------------
 */
 
-function RatingStars({
-  rating,
-}: {
-  rating: number;
-}) {
-  const initialRating = Math.round(
-    Number(rating || 0),
-  );
+function RatingStars({ rating }: { rating: number }) {
+  const initialRating = Math.round(Number(rating || 0));
+  const [selectedRating, setSelectedRating] = useState(initialRating);
+  const [hoveredRating, setHoveredRating] = useState(0);
 
-  const [
-    selectedRating,
-    setSelectedRating,
-  ] = useState(initialRating);
-
-  const [
-    hoveredRating,
-    setHoveredRating,
-  ] = useState(0);
-
-  const activeRating =
-    hoveredRating || selectedRating;
+  const activeRating = hoveredRating || selectedRating;
 
   return (
     <span
       className="flex items-center gap-0.5"
       aria-label={`${activeRating} out of 5 stars`}
     >
-      {Array.from(
-        { length: 5 },
-        (_, index) => {
-          const starValue = index + 1;
+      {Array.from({ length: 5 }, (_, index) => {
+        const starValue = index + 1;
+        const isActive = starValue <= activeRating;
 
-          const isActive =
-            starValue <= activeRating;
-
-          return (
-            <button
-              key={starValue}
-              type="button"
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-
-                setSelectedRating(
-                  starValue,
-                );
-              }}
-              onMouseEnter={() =>
-                setHoveredRating(
-                  starValue,
-                )
-              }
-              onMouseLeave={() =>
-                setHoveredRating(0)
-              }
-              className={`text-lg leading-none transition ${
-                isActive
-                  ? "text-amber-400"
-                  : "text-gray-300"
-              } hover:text-amber-400`}
-              aria-label={`Select ${starValue} star`}
-            >
-              &#9733;
-            </button>
-          );
-        },
-      )}
+        return (
+          <button
+            key={starValue}
+            type="button"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              setSelectedRating(starValue);
+            }}
+            onMouseEnter={() => setHoveredRating(starValue)}
+            onMouseLeave={() => setHoveredRating(0)}
+            className={`text-lg leading-none transition ${
+              isActive ? "text-amber-400" : "text-gray-300"
+            } hover:text-amber-400`}
+            aria-label={`Select ${starValue} star`}
+          >
+            &#9733;
+          </button>
+        );
+      })}
     </span>
   );
 }
@@ -179,18 +123,12 @@ export default function ProductCard({
 }) {
   const { refreshCart } = useCart();
 
-  const [adding, setAdding] =
-    useState(false);
+  const [adding, setAdding] = useState(false);
+  const [added, setAdded] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
+  const [cartError, setCartError] = useState("");
 
-  const [added, setAdded] =
-    useState(false);
-
-  const [imageFailed, setImageFailed] =
-    useState(false);
-
-  const regularPrice = Number(
-    product.price,
-  );
+  const regularPrice = Number(product.price);
 
   const currentPrice = Number(
     product.discount_price ??
@@ -198,16 +136,8 @@ export default function ProductCard({
       product.price,
   );
 
-  const discountPercentage =
-    getDiscountPercentage(product);
-
-  const rating = Number(
-    product.average_rating ?? 0,
-  );
-
-  const reviewCount = Number(
-    product.review_count ?? 0,
-  );
+  const discountPercentage = getDiscountPercentage(product);
+  const rating = Number(product.average_rating ?? 0);
 
   const productImageUrl = imageFailed
     ? "/placeholder-product.svg"
@@ -215,16 +145,14 @@ export default function ProductCard({
 
   const selectedVariant =
     product.variants?.find(
-      (variant) =>
-        Number(variant.stock_qty) > 0,
+      (variant) => Number(variant.stock_qty) > 0,
     ) ?? product.variants?.[0];
 
   const availableStock = selectedVariant
     ? Number(selectedVariant.stock_qty)
     : Number(product.stock_qty ?? 0);
 
-  const outOfStock =
-    availableStock <= 0;
+  const outOfStock = availableStock <= 0;
 
   async function handleAddToCart(
     event: MouseEvent<HTMLButtonElement>,
@@ -232,18 +160,26 @@ export default function ProductCard({
     event.preventDefault();
     event.stopPropagation();
 
+    if (outOfStock || adding) {
+      return;
+    }
+
     try {
       setAdding(true);
       setAdded(false);
+      setCartError("");
 
       await cartApi.addItem({
         product_id: product.id,
-        product_variant_id:
-          selectedVariant?.id ?? null,
+        product_variant_id: selectedVariant?.id ?? null,
         quantity: 1,
       });
 
       await refreshCart();
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("cart-updated"));
+      }
 
       setAdded(true);
 
@@ -251,9 +187,12 @@ export default function ProductCard({
         setAdded(false);
       }, 1500);
     } catch (error) {
-      console.error(
-        "Unable to add product to cart:",
-        error,
+      console.error("Unable to add product to cart:", error);
+
+      setCartError(
+        error instanceof Error
+          ? error.message
+          : "Unable to add this product to cart.",
       );
     } finally {
       setAdding(false);
@@ -267,8 +206,7 @@ export default function ProductCard({
         className="block"
       >
         <div className="relative flex h-52 items-center justify-center overflow-hidden rounded-xl bg-white sm:h-56 lg:h-60">
-          {discountPercentage !==
-            null && (
+          {discountPercentage !== null && (
             <span className="absolute left-0 top-0 z-10 rounded-md bg-amber-500 px-2.5 py-1 text-xs font-bold text-white">
               -{discountPercentage}%
             </span>
@@ -278,9 +216,7 @@ export default function ProductCard({
             src={productImageUrl}
             alt={product.name}
             className="h-full w-full object-contain p-3 transition duration-300 group-hover:scale-105"
-            onError={() =>
-              setImageFailed(true)
-            }
+            onError={() => setImageFailed(true)}
           />
         </div>
       </Link>
@@ -306,28 +242,27 @@ export default function ProductCard({
         </div>
 
         <div className="mt-4 flex min-h-8 items-center gap-2">
-          {discountPercentage !==
-            null && (
+          {discountPercentage !== null && (
             <span className="text-sm text-gray-400 line-through">
-              {formatPrice(
-                regularPrice,
-              )}
+              {formatPrice(regularPrice)}
             </span>
           )}
 
           <span className="text-xl font-extrabold text-primary">
-            {formatPrice(
-              currentPrice,
-            )}
+            {formatPrice(currentPrice)}
           </span>
         </div>
+
+        {cartError && (
+          <p className="mt-3 text-center text-xs font-semibold text-red-600">
+            {cartError}
+          </p>
+        )}
 
         <button
           type="button"
           onClick={handleAddToCart}
-          disabled={
-            adding || outOfStock
-          }
+          disabled={adding || outOfStock}
           className="mt-6 w-full rounded-full bg-gray-100 px-4 py-3 text-sm font-extrabold tracking-wide text-primary transition hover:bg-primary hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
         >
           {outOfStock

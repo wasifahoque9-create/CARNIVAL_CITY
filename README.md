@@ -45,7 +45,7 @@ cd frontend
 cp .env.example .env.local  
 npm install
 npm run dev
-```
+```yes
 
 
 Storefront runs at **http://localhost:3000**

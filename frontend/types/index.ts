@@ -1,4 +1,7 @@
-export type UserRole = "guest" | "customer" | "admin";
+export type UserRole =
+  | "guest"
+  | "customer"
+  | "admin";
 
 export type OrderStatus =
   | "pending"
@@ -26,6 +29,12 @@ export type CategoryType =
   | "earbuds"
   | "accessory";
 
+/*
+|--------------------------------------------------------------------------
+| User
+|--------------------------------------------------------------------------
+*/
+
 export interface User {
   id: number;
   name: string;
@@ -36,6 +45,12 @@ export interface User {
   created_at?: string;
 }
 
+/*
+|--------------------------------------------------------------------------
+| Category
+|--------------------------------------------------------------------------
+*/
+
 export interface Category {
   id: number;
   parent_id?: number | null;
@@ -45,6 +60,12 @@ export interface Category {
   children?: Category[];
   created_at?: string;
 }
+
+/*
+|--------------------------------------------------------------------------
+| Product
+|--------------------------------------------------------------------------
+*/
 
 export interface ProductImage {
   id: number;
@@ -65,173 +86,409 @@ export interface ProductVariant {
 export interface Product {
   id: number;
   category_id?: number;
+
   name: string;
   slug: string;
+
   brand?: string;
+
   description?: string | null;
+
   price: number;
+
   discount_price?: number | null;
+
   effective_price?: number;
+
   stock_qty?: number;
+
   status?: string;
-  specifications?: Record<
-    string,
-    string | number | boolean
-  > | null;
+
+  specifications?:
+    | Record<
+        string,
+        string | number | boolean
+      >
+    | null;
+
   warranty_months?: number | null;
+
   sku?: string | null;
+
   average_rating?: number | null;
+
   review_count?: number;
+
   category?: Category;
+
   categories?: Category[];
+
   images?: ProductImage[];
+
   variants?: ProductVariant[];
+
   created_at?: string;
 }
 
+/*
+|--------------------------------------------------------------------------
+| Review
+|--------------------------------------------------------------------------
+*/
+
 export interface Review {
   id: number;
+
   product_id?: number;
+
   rating: number;
+
   comment: string;
+
   status: ReviewStatus;
+
   user?: Pick<User, "id" | "name">;
+
   product?: Pick<
     Product,
     "id" | "name" | "slug"
   >;
+
   created_at: string;
 }
 
+/*
+|--------------------------------------------------------------------------
+| Cart
+|--------------------------------------------------------------------------
+*/
+
 export interface CartItem {
   id: number;
+
   product_id: number;
-  product_variant_id?: number | null;
+
+  product_variant_id?:
+    | number
+    | null;
+
   quantity: number;
+
   unit_price: number;
+
   line_total: number;
+
   product?: Product;
+
   variant?: ProductVariant;
 }
 
 export interface Cart {
   id: number;
+
   items: CartItem[];
+
   subtotal: number;
+
   discount_total?: number;
+
   total: number;
+
   item_count: number;
 }
 
+/*
+|--------------------------------------------------------------------------
+| Address
+|--------------------------------------------------------------------------
+*/
+
 export interface Address {
   id: number;
+
   label?: string | null;
+
   line1: string;
+
   line2?: string | null;
+
   city: string;
+
   postal_code: string;
+
   country: string;
+
   is_default: boolean;
 }
 
+/*
+|--------------------------------------------------------------------------
+| Order Item
+|--------------------------------------------------------------------------
+*/
+
 export interface OrderItem {
   id: number;
+
   product_id: number;
+
+  product_variant_id?:
+    | number
+    | null;
+
   quantity: number;
+
   unit_price: number;
+
   line_total: number;
+
   product?: Product;
+
   variant?: ProductVariant;
 }
 
+/*
+|--------------------------------------------------------------------------
+| Payment
+|--------------------------------------------------------------------------
+*/
+
 export interface Payment {
   id: number;
+
   status: PaymentStatus;
+
   method: string;
+
   amount?: number;
+
   transaction_ref?: string | null;
 }
+
+/*
+|--------------------------------------------------------------------------
+| Order
+|--------------------------------------------------------------------------
+|
+| Supports:
+|
+| - Logged-in customer orders
+| - Guest customer orders
+|
+*/
 
 export interface Order {
   id: number;
 
-  // Registered customer
+  /*
+   * Logged-in customer
+   */
   user_id?: number | null;
-  user?: User | null;
 
+  /*
+   * Order state
+   */
   status: OrderStatus;
+
   total_amount: number;
 
-  // Registered customer shipping address
-  shipping_address_id?: number | null;
-  shipping_address?: Address | null;
+  /*
+   * Logged-in customer's saved address
+   */
+  shipping_address_id?:
+    | number
+    | null;
 
-  // Guest customer information
+  shipping_address?:
+    | Address
+    | null;
+
+  /*
+   * Guest customer data
+   */
   guest_name?: string | null;
-  guest_phone?: string | null;
+
   guest_email?: string | null;
 
-  // Guest delivery information
-  guest_address_line1?: string | null;
-  guest_address_line2?: string | null;
+  guest_phone?: string | null;
+
+  guest_address_line1?:
+    | string
+    | null;
+
+  guest_address_line2?:
+    | string
+    | null;
+
   guest_city?: string | null;
-  guest_area?: string | null;
-  guest_postal_code?: string | null;
-  guest_notes?: string | null;
 
-  // Guest or registered
-  customer_type?: "guest" | "registered";
+  guest_postal_code?:
+    | string
+    | null;
 
+  guest_country?: string | null;
+
+  guest_token?: string | null;
+
+  /*
+   * Order relations
+   */
   items?: OrderItem[];
-  payment?: Payment | null;
 
+  payment?: Payment;
+
+  /*
+   * Timestamps
+   */
   created_at: string;
+
   updated_at?: string;
 }
 
+/*
+|--------------------------------------------------------------------------
+| Checkout Payload
+|--------------------------------------------------------------------------
+|
+| One interface is used for both:
+|
+| Logged-in:
+| shipping_address_id
+|
+| Guest:
+| guest_name + guest address information
+|
+*/
+
+export interface CheckoutPayload {
+  shipping_address_id?:
+    | number
+    | null;
+
+  guest_name?: string;
+
+  guest_email?: string;
+
+  guest_phone?: string;
+
+  guest_address_line1?: string;
+
+  guest_address_line2?: string;
+
+  guest_city?: string;
+
+  guest_postal_code?: string;
+
+  guest_country?: string;
+
+  payment_method:
+    | "cod"
+    | "gateway";
+
+  gateway_payload?: Record<
+    string,
+    unknown
+  >;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Pagination
+|--------------------------------------------------------------------------
+*/
+
 export interface PaginationMeta {
   current_page: number;
+
   last_page: number;
+
   per_page: number;
+
   total: number;
 }
 
 export interface PaginatedResponse<T> {
   data: T[];
+
   meta: PaginationMeta;
 }
 
+/*
+|--------------------------------------------------------------------------
+| Authentication
+|--------------------------------------------------------------------------
+*/
+
 export interface AuthResponse {
   user: User;
+
   token: string;
+
   message?: string;
 }
 
+/*
+|--------------------------------------------------------------------------
+| Dashboard
+|--------------------------------------------------------------------------
+*/
+
 export interface DashboardStats {
   total_orders: number;
+
   total_revenue: number;
+
   total_products: number;
+
   total_customers: number;
+
   pending_reviews: number;
+
   recent_orders: Order[];
 }
+
+/*
+|--------------------------------------------------------------------------
+| API Message
+|--------------------------------------------------------------------------
+*/
 
 export interface ApiMessage {
   message: string;
 }
 
+/*
+|--------------------------------------------------------------------------
+| Product Filters
+|--------------------------------------------------------------------------
+*/
+
 export interface ProductFilters {
   search?: string;
+
   category_id?: number;
+
   category_slug?: string;
+
   min_price?: number;
+
   max_price?: number;
+
   page?: number;
+
   per_page?: number;
 }
 
+/*
+|--------------------------------------------------------------------------
+| Review Response
+|--------------------------------------------------------------------------
+*/
+
 export interface ReviewsResponse {
   data: Review[];
+
   average_rating?: number;
+
   meta?: PaginationMeta;
 }

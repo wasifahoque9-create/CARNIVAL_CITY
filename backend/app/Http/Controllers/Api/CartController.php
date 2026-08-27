@@ -7,7 +7,6 @@ use App\Http\Requests\Api\Cart\AddToCartRequest;
 use App\Http\Requests\Api\Cart\RemoveFromCartRequest;
 use App\Http\Requests\Api\Cart\UpdateCartRequest;
 use App\Http\Resources\CartResource;
-use App\Services\CartResolver;
 use App\Services\CartService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,88 +14,256 @@ use Illuminate\Http\Request;
 class CartController extends Controller
 {
     public function __construct(
-        private CartService $cartService,
-        private CartResolver $cartResolver,
+        private CartService $cartService
     ) {}
 
-    public function index(Request $request): JsonResponse
-    {
-        $cart = $this->cartResolver->resolve($request);
+    /**
+     * Get guest token from request header.
+     */
+    private function getGuestToken(
+        Request $request
+    ): ?string {
+        $token = $request->header(
+            'X-Guest-Cart-Token'
+        );
 
-        $summary = $this->cartService->getCartSummary($cart);
+        return $token
+            ? trim((string) $token)
+            : null;
+    }
+
+    /**
+     * Get cart summary.
+     */
+    public function index(
+        Request $request
+    ): JsonResponse {
+        $guestToken =
+            $this->getGuestToken($request);
+
+        $summary =
+            $this->cartService
+                ->getCartSummary(
+                    $request->user(),
+                    $guestToken
+                );
 
         return response()->json([
-            'cart' => new CartResource($summary['cart']),
-            'subtotal' => $summary['subtotal'],
-            'discount_total' => $summary['discount_total'],
-            'total' => $summary['total'],
-            'item_count' => $summary['item_count'],
+            'cart' =>
+                new CartResource(
+                    $summary['cart']
+                ),
+
+            'subtotal' =>
+                $summary['subtotal'],
+
+            'discount_total' =>
+                $summary['discount_total'],
+
+            'total' =>
+                $summary['total'],
+
+            'item_count' =>
+                $summary['item_count'],
         ]);
     }
 
-    public function add(AddToCartRequest $request): JsonResponse
-    {
-        $resolvedCart = $this->cartResolver->resolve($request);
+    /**
+     * Add item to cart.
+     */
+    public function add(
+        AddToCartRequest $request
+    ): JsonResponse {
+        $guestToken =
+            $this->getGuestToken($request);
 
-        $cart = $this->cartService->addItem(
-            $resolvedCart,
-            $request->integer('product_id'),
-            $request->input('product_variant_id'),
-            $request->integer('quantity'),
-        );
+        $cart =
+            $this->cartService->addItem(
+                $request->user(),
+                $guestToken,
+                $request->integer(
+                    'product_id'
+                ),
 
-        $summary = $this->cartService->getCartSummary($cart);
+                $request->filled(
+                    'product_variant_id'
+                )
+                    ? $request->integer(
+                        'product_variant_id'
+                    )
+                    : null,
+
+                $request->integer(
+                    'quantity'
+                )
+            );
+
+        $summary =
+            $this->cartService
+                ->getCartSummary(
+                    $request->user(),
+                    $guestToken
+                );
 
         return response()->json([
-            'message' => 'Item added to cart.',
-            'cart' => new CartResource($cart),
-            'subtotal' => $summary['subtotal'],
-            'discount_total' => $summary['discount_total'],
-            'total' => $summary['total'],
-            'item_count' => $summary['item_count'],
+            'message' =>
+                'Item added to cart.',
+
+            'cart' =>
+                new CartResource($cart),
+
+            'subtotal' =>
+                $summary['subtotal'],
+
+            'discount_total' =>
+                $summary['discount_total'],
+
+            'total' =>
+                $summary['total'],
+
+            'item_count' =>
+                $summary['item_count'],
         ]);
     }
 
-    public function update(UpdateCartRequest $request): JsonResponse
-    {
-        $resolvedCart = $this->cartResolver->resolve($request);
+    /**
+     * Update cart item quantity.
+     */
+    public function update(
+        UpdateCartRequest $request
+    ): JsonResponse {
+        $guestToken =
+            $this->getGuestToken($request);
 
-        $cart = $this->cartService->updateItem(
-            $resolvedCart,
-            $request->integer('cart_item_id'),
-            $request->integer('quantity'),
-        );
+        $cart =
+            $this->cartService
+                ->updateItem(
+                    $request->user(),
+                    $guestToken,
+                    $request->integer(
+                        'cart_item_id'
+                    ),
+                    $request->integer(
+                        'quantity'
+                    )
+                );
 
-        $summary = $this->cartService->getCartSummary($cart);
+        $summary =
+            $this->cartService
+                ->getCartSummary(
+                    $request->user(),
+                    $guestToken
+                );
 
         return response()->json([
-            'message' => 'Cart updated.',
-            'cart' => new CartResource($cart),
-            'subtotal' => $summary['subtotal'],
-            'discount_total' => $summary['discount_total'],
-            'total' => $summary['total'],
-            'item_count' => $summary['item_count'],
+            'message' =>
+                'Cart updated.',
+
+            'cart' =>
+                new CartResource($cart),
+
+            'subtotal' =>
+                $summary['subtotal'],
+
+            'discount_total' =>
+                $summary['discount_total'],
+
+            'total' =>
+                $summary['total'],
+
+            'item_count' =>
+                $summary['item_count'],
         ]);
     }
 
-    public function remove(RemoveFromCartRequest $request): JsonResponse
-    {
-        $resolvedCart = $this->cartResolver->resolve($request);
+    /**
+     * Remove one item from cart.
+     */
+    public function remove(
+        RemoveFromCartRequest $request
+    ): JsonResponse {
+        $guestToken =
+            $this->getGuestToken($request);
 
-        $cart = $this->cartService->removeItem(
-            $resolvedCart,
-            $request->integer('cart_item_id'),
-        );
+        $cart =
+            $this->cartService
+                ->removeItem(
+                    $request->user(),
+                    $guestToken,
+                    $request->integer(
+                        'cart_item_id'
+                    )
+                );
 
-        $summary = $this->cartService->getCartSummary($cart);
+        $summary =
+            $this->cartService
+                ->getCartSummary(
+                    $request->user(),
+                    $guestToken
+                );
 
         return response()->json([
-            'message' => 'Item removed from cart.',
-            'cart' => new CartResource($cart),
-            'subtotal' => $summary['subtotal'],
-            'discount_total' => $summary['discount_total'],
-            'total' => $summary['total'],
-            'item_count' => $summary['item_count'],
+            'message' =>
+                'Item removed from cart.',
+
+            'cart' =>
+                new CartResource($cart),
+
+            'subtotal' =>
+                $summary['subtotal'],
+
+            'discount_total' =>
+                $summary['discount_total'],
+
+            'total' =>
+                $summary['total'],
+
+            'item_count' =>
+                $summary['item_count'],
+        ]);
+    }
+
+    /**
+     * Clear all items from cart.
+     */
+    public function clear(
+        Request $request
+    ): JsonResponse {
+        $guestToken =
+            $this->getGuestToken($request);
+
+        $this->cartService->clearCart(
+            $request->user(),
+            $guestToken
+        );
+
+        $summary =
+            $this->cartService
+                ->getCartSummary(
+                    $request->user(),
+                    $guestToken
+                );
+
+        return response()->json([
+            'message' =>
+                'Cart cleared successfully.',
+
+            'cart' =>
+                new CartResource(
+                    $summary['cart']
+                ),
+
+            'subtotal' =>
+                $summary['subtotal'],
+
+            'discount_total' =>
+                $summary['discount_total'],
+
+            'total' =>
+                $summary['total'],
+
+            'item_count' =>
+                $summary['item_count'],
         ]);
     }
 }

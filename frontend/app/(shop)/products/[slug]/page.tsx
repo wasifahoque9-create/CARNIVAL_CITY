@@ -403,7 +403,7 @@ export default function ProductDetailPage() {
         type: "error",
         text: getErrorMessage(
           error,
-          "Failed to add item to cart. Please log in and try again.",
+          "Failed to add item to cart. Please try again.",
         ),
       });
     } finally {

@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
-use App\Models\Cart;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Payment;
@@ -25,24 +24,56 @@ class OrderService
     ) {}
 
     public function placeOrder(
-        User $user,
-        int $shippingAddressId,
+        ?User $user,
+        ?string $guestToken,
+        ?int $shippingAddressId,
         PaymentMethod $method,
-        array $gatewayPayload = []
+        array $guestData = [],
+        array $gatewayPayload = [],
     ): Order {
-        $summary = $this->cartService->getCartSummary($user);
+        $summary = $this->cartService->getCartSummary(
+            $user,
+            $guestToken
+        );
+
         $cart = $summary['cart'];
 
         if ($cart->items->isEmpty()) {
             throw ValidationException::withMessages([
-                'cart' => ['Cannot place an order with an empty cart.'],
+                'cart' => [
+                    'Cannot place an order with an empty cart.',
+                ],
             ]);
         }
 
-        $address = $user->addresses()->findOrFail($shippingAddressId);
+        $address = null;
+
+        if ($user) {
+            if (! $shippingAddressId) {
+                throw ValidationException::withMessages([
+                    'shipping_address_id' => [
+                        'Please select a shipping address.',
+                    ],
+                ]);
+            }
+
+            $address = $user
+                ->addresses()
+                ->findOrFail($shippingAddressId);
+        } else {
+            if (! $guestToken) {
+                throw ValidationException::withMessages([
+                    'guest_token' => [
+                        'Guest cart token is required.',
+                    ],
+                ]);
+            }
+        }
 
         return DB::transaction(function () use (
             $user,
+            $guestToken,
+            $guestData,
             $cart,
             $summary,
             $address,
@@ -50,190 +81,144 @@ class OrderService
             $gatewayPayload
         ) {
             $order = Order::create([
-                'user_id' => $user->id,
-                'status' => OrderStatus::Pending,
-                'total_amount' => $summary['total'],
-                'shipping_address_id' => $address->id,
-            ]);
+                'user_id' => $user?->id,
 
-            foreach ($cart->items as $item) {
-                OrderItem::create([
-                    'order_id' => $order->id,
-                    'product_id' => $item->product_id,
-                    'product_variant_id' => $item->product_variant_id,
-                    'quantity' => $item->quantity,
-                    'unit_price' => $item->unitPrice(),
-                ]);
-            }
+                'status' =>
+                    OrderStatus::Pending,
 
-            $payment = Payment::create([
-                'order_id' => $order->id,
-                'method' => $method,
-                'status' => PaymentStatus::Pending,
-                'amount' => $summary['total'],
-            ]);
-
-            if ($method === PaymentMethod::Cod) {
-                $payment->update([
-                    'status' => PaymentStatus::Paid,
-                    'transaction_ref' => 'COD-'.$order->id,
-                ]);
-
-                $this->confirmOrder($order);
-            } else {
-                $result = $this->paymentGatewayService->processPayment(
-                    $order,
+                'total_amount' =>
                     $summary['total'],
-                    $gatewayPayload
-                );
 
-                if ($result['success']) {
-                    $payment->update([
-                        'status' => PaymentStatus::Paid,
-                        'transaction_ref' => $result['transaction_ref'],
-                    ]);
+                'shipping_address_id' =>
+                    $address?->id,
 
-                    $this->confirmOrder($order);
-                } else {
-                    $payment->update([
-                        'status' => PaymentStatus::Failed,
-                    ]);
+                'guest_name' =>
+                    $user
+                        ? null
+                        : ($guestData['guest_name'] ?? null),
 
-                    throw ValidationException::withMessages([
-                        'payment' => [
-                            $result['message'] ?? 'Payment failed.',
-                        ],
-                    ]);
-                }
-            }
+                'guest_email' =>
+                    $user
+                        ? null
+                        : ($guestData['guest_email'] ?? null),
 
-            $this->cartService->clearCart($user);
-
-            $order->load([
-                'items.product',
-                'items.variant',
-                'shippingAddress',
-                'payment',
-            ]);
-
-            $user->notify(
-                new OrderPlacedNotification($order)
-            );
-
-            return $order;
-        });
-    }
-
-    public function placeGuestOrder(
-        Cart $cart,
-        array $guestData,
-        PaymentMethod $method,
-        array $gatewayPayload = []
-    ): Order {
-        $summary = $this->cartService->getCartSummary($cart);
-        $cart = $summary['cart'];
-
-        if ($cart->items->isEmpty()) {
-            throw ValidationException::withMessages([
-                'cart' => ['Cannot place an order with an empty cart.'],
-            ]);
-        }
-
-        return DB::transaction(function () use (
-            $cart,
-            $summary,
-            $guestData,
-            $method,
-            $gatewayPayload
-        ) {
-            $order = Order::create([
-                'user_id' => null,
-                'shipping_address_id' => null,
-
-                'status' => OrderStatus::Pending,
-                'total_amount' => $summary['total'],
-
-                'guest_name' => $guestData['guest_name'],
-                'guest_phone' => $guestData['guest_phone'],
-                'guest_email' => $guestData['guest_email'] ?? null,
+                'guest_phone' =>
+                    $user
+                        ? null
+                        : ($guestData['guest_phone'] ?? null),
 
                 'guest_address_line1' =>
-                    $guestData['guest_address_line1'],
+                    $user
+                        ? null
+                        : ($guestData['guest_address_line1'] ?? null),
 
                 'guest_address_line2' =>
-                    $guestData['guest_address_line2'] ?? null,
+                    $user
+                        ? null
+                        : ($guestData['guest_address_line2'] ?? null),
 
-                'guest_city' => $guestData['guest_city'],
-                'guest_area' => $guestData['guest_area'],
+                'guest_city' =>
+                    $user
+                        ? null
+                        : ($guestData['guest_city'] ?? null),
 
                 'guest_postal_code' =>
-                    $guestData['guest_postal_code'] ?? null,
+                    $user
+                        ? null
+                        : ($guestData['guest_postal_code'] ?? null),
 
-                'guest_notes' =>
-                    $guestData['guest_notes'] ?? null,
+                'guest_country' =>
+                    $user
+                        ? null
+                        : ($guestData['guest_country'] ?? null),
+
+                'guest_token' =>
+                    $user
+                        ? null
+                        : $guestToken,
             ]);
 
             foreach ($cart->items as $item) {
                 OrderItem::create([
-                    'order_id' => $order->id,
-                    'product_id' => $item->product_id,
-                    'product_variant_id' => $item->product_variant_id,
-                    'quantity' => $item->quantity,
-                    'unit_price' => $item->unitPrice(),
+                    'order_id' =>
+                        $order->id,
+
+                    'product_id' =>
+                        $item->product_id,
+
+                    'product_variant_id' =>
+                        $item->product_variant_id,
+
+                    'quantity' =>
+                        $item->quantity,
+
+                    'unit_price' =>
+                        $item->unitPrice(),
                 ]);
             }
 
             $payment = Payment::create([
-                'order_id' => $order->id,
-                'method' => $method,
-                'status' => PaymentStatus::Pending,
-                'amount' => $summary['total'],
+                'order_id' =>
+                    $order->id,
+
+                'method' =>
+                    $method,
+
+                'status' =>
+                    PaymentStatus::Pending,
+
+                'amount' =>
+                    $summary['total'],
             ]);
 
             if ($method === PaymentMethod::Cod) {
                 $payment->update([
-                    'status' => PaymentStatus::Paid,
-                    'transaction_ref' => 'COD-'.$order->id,
+                    'status' =>
+                        PaymentStatus::Pending,
+
+                    'transaction_ref' =>
+                        'COD-' . $order->id,
                 ]);
 
                 $this->confirmOrder($order);
             } else {
-                $result = $this->paymentGatewayService->processPayment(
-                    $order,
-                    $summary['total'],
-                    $gatewayPayload
-                );
+                $result =
+                    $this->paymentGatewayService
+                        ->processPayment(
+                            $order,
+                            $summary['total'],
+                            $gatewayPayload
+                        );
 
                 if ($result['success']) {
                     $payment->update([
-                        'status' => PaymentStatus::Paid,
-                        'transaction_ref' => $result['transaction_ref'],
+                        'status' =>
+                            PaymentStatus::Paid,
+
+                        'transaction_ref' =>
+                            $result['transaction_ref'],
                     ]);
 
                     $this->confirmOrder($order);
                 } else {
                     $payment->update([
-                        'status' => PaymentStatus::Failed,
+                        'status' =>
+                            PaymentStatus::Failed,
                     ]);
 
                     throw ValidationException::withMessages([
                         'payment' => [
-                            $result['message'] ?? 'Payment failed.',
+                            $result['message']
+                            ?? 'Payment failed.',
                         ],
                     ]);
                 }
             }
 
-            /*
-             * Remove items from the guest cart
-             * after successful checkout.
-             */
-            $this->cartService->clearCart($cart);
-
-            /*
-             * Remove the empty guest cart record too.
-             */
-            $cart->delete();
+            $this->cartService->clearCart(
+                $user,
+                $guestToken
+            );
 
             $order->load([
                 'items.product',
@@ -241,6 +226,14 @@ class OrderService
                 'shippingAddress',
                 'payment',
             ]);
+
+            if ($user) {
+                $user->notify(
+                    new OrderPlacedNotification(
+                        $order
+                    )
+                );
+            }
 
             return $order;
         });
@@ -260,7 +253,10 @@ class OrderService
             );
         }
 
-        if (! $order->status->canBeCancelledByCustomer()) {
+        if (
+            ! $order->status
+                ->canBeCancelledByCustomer()
+        ) {
             throw ValidationException::withMessages([
                 'order' => [
                     'Order can only be cancelled before shipment.',
@@ -268,112 +264,131 @@ class OrderService
             ]);
         }
 
-        return DB::transaction(function () use ($order, $user) {
-            $previousStatus = $order->status;
+        return DB::transaction(
+            function () use ($order, $user) {
+                $previousStatus =
+                    $order->status;
 
-            $order->update([
-                'status' => OrderStatus::Cancelled,
-            ]);
-
-            $this->restoreStock($order);
-
-            if (
-                $order->payment
-                && $order->payment->status === PaymentStatus::Paid
-            ) {
-                $order->payment->update([
-                    'status' => PaymentStatus::Refunded,
+                $order->update([
+                    'status' =>
+                        OrderStatus::Cancelled,
                 ]);
+
+                $this->restoreStock($order);
+
+                if (
+                    $order->payment
+                    && $order->payment->status
+                        === PaymentStatus::Paid
+                ) {
+                    $order->payment->update([
+                        'status' =>
+                            PaymentStatus::Refunded,
+                    ]);
+                }
+
+                $order->load([
+                    'items.product',
+                    'items.variant',
+                    'shippingAddress',
+                    'payment',
+                ]);
+
+                $user->notify(
+                    new OrderStatusChangedNotification(
+                        $order,
+                        $previousStatus->value
+                    )
+                );
+
+                return $order;
             }
-
-            $order->load([
-                'items.product',
-                'items.variant',
-                'shippingAddress',
-                'payment',
-            ]);
-
-            $user->notify(
-                new OrderStatusChangedNotification(
-                    $order,
-                    $previousStatus->value
-                )
-            );
-
-            return $order;
-        });
+        );
     }
 
     public function updateStatus(
         Order $order,
         OrderStatus $status
     ): Order {
-        return DB::transaction(function () use ($order, $status) {
-            $previousStatus = $order->status;
+        return DB::transaction(
+            function () use ($order, $status) {
+                $previousStatus =
+                    $order->status;
 
-            if ($status === OrderStatus::Cancelled) {
-                if (! $order->status->isPreShipment()) {
-                    throw ValidationException::withMessages([
-                        'status' => [
-                            'Cannot cancel an order that has already shipped.',
-                        ],
-                    ]);
+                if (
+                    $status ===
+                    OrderStatus::Cancelled
+                ) {
+                    if (
+                        ! $order->status
+                            ->isPreShipment()
+                    ) {
+                        throw ValidationException::withMessages([
+                            'status' => [
+                                'Cannot cancel an order that has already shipped.',
+                            ],
+                        ]);
+                    }
+
+                    $this->restoreStock($order);
                 }
 
-                $this->restoreStock($order);
+                if (
+                    $status ===
+                        OrderStatus::Confirmed
+                    && $order->status ===
+                        OrderStatus::Pending
+                ) {
+                    $this->decrementStock($order);
+                }
+
+                $order->update([
+                    'status' => $status,
+                ]);
+
+                $order->load([
+                    'items.product',
+                    'items.variant',
+                    'shippingAddress',
+                    'payment',
+                    'user',
+                ]);
+
+                if ($order->user) {
+                    $order->user->notify(
+                        new OrderStatusChangedNotification(
+                            $order,
+                            $previousStatus->value
+                        )
+                    );
+                }
+
+                return $order;
             }
-
-            if (
-                $status === OrderStatus::Confirmed
-                && $order->status === OrderStatus::Pending
-            ) {
-                $this->decrementStock($order);
-            }
-
-            $order->update([
-                'status' => $status,
-            ]);
-
-            $order->load([
-                'items.product',
-                'items.variant',
-                'shippingAddress',
-                'payment',
-                'user',
-            ]);
-
-            /*
-             * Guest orders have no User model,
-             * so only notify registered customers.
-             */
-            if ($order->user) {
-                $order->user->notify(
-                    new OrderStatusChangedNotification(
-                        $order,
-                        $previousStatus->value
-                    )
-                );
-            }
-
-            return $order;
-        });
+        );
     }
 
-    public function confirmOrder(Order $order): void
-    {
-        if ($order->status === OrderStatus::Confirmed) {
+    public function confirmOrder(
+        Order $order
+    ): void {
+        if (
+            $order->status ===
+            OrderStatus::Confirmed
+        ) {
             return;
         }
 
         $this->decrementStock($order);
 
         $order->update([
-            'status' => OrderStatus::Confirmed,
+            'status' =>
+                OrderStatus::Confirmed,
         ]);
     }
 
-    private function decrementStock(Order $order): void
-    {
+    private function decrementStock(
+        Order $order
+    ): void {
         $order->loadMissing(
             'items.product',
             'items.variant'
@@ -415,8 +430,9 @@ class OrderService
         }
     }
 
-    private function restoreStock(Order $order): void
-    {
+    private function restoreStock(
+        Order $order
+    ): void {
         $order->loadMissing(
             'items.product',
             'items.variant'
