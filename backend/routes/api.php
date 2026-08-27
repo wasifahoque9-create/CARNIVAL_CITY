@@ -176,16 +176,3 @@ Route::middleware(['auth:sanctum', 'admin'])
         Route::get('/reviews', [AdminController::class, 'reviews']);
     });
    
-Route::middleware('auth:sanctum')
-    ->prefix('admin')
-    ->group(function () {
-        Route::get(
-            '/products',
-            [ProductController::class, 'adminIndex'],
-        );
-
-        Route::post(
-            '/products',
-            [ProductController::class, 'store'],
-        );
-    });

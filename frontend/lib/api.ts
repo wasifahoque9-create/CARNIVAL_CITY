@@ -165,7 +165,9 @@ export async function api<T>(
 |--------------------------------------------------------------------------
 */
 
-function unwrap<T>(payload: T | { data: T }): T {
+function unwrap<T>(
+  payload: T | { data: T },
+): T {
   if (
     payload &&
     typeof payload === "object" &&
@@ -597,6 +599,12 @@ export const adminApi = {
       "/admin/dashboard",
     ),
 
+  /*
+  |--------------------------------------------------------------------------
+  | Admin Products
+  |--------------------------------------------------------------------------
+  */
+
   products: {
     /*
      * Admin product list.
@@ -662,8 +670,8 @@ export const adminApi = {
       ).then(unwrap),
 
     /*
-     * Update currently supports both normal JSON
-     * and FormData for future image replacement.
+     * Update supports both normal JSON
+     * and FormData for image replacement.
      */
     update: (
       id: number,
@@ -676,8 +684,11 @@ export const adminApi = {
         data instanceof FormData;
 
       /*
-       * Laravel/PHP can have difficulty reading multipart PUT requests.
-       * For FormData, send POST with _method=PUT.
+       * Laravel/PHP can have difficulty reading
+       * multipart PUT requests.
+       *
+       * Therefore, when FormData is used:
+       * POST + _method=PUT
        */
       if (isFormData) {
         if (!data.has("_method")) {
@@ -709,7 +720,19 @@ export const adminApi = {
       ),
   },
 
+  /*
+  |--------------------------------------------------------------------------
+  | Admin Categories
+  |--------------------------------------------------------------------------
+  |
+  | Category images are now uploaded using FormData.
+  |
+  */
+
   categories: {
+    /*
+     * Get all categories.
+     */
     list: () =>
       api<
         Category[] | {
@@ -717,31 +740,90 @@ export const adminApi = {
         }
       >("/categories").then(unwrap),
 
+    /*
+     * Create category.
+     *
+     * Supports:
+     * - FormData for category image upload
+     * - Normal JSON data
+     */
     create: (
-      data: Partial<Category>,
-    ) =>
-      api<
+      data:
+        | FormData
+        | Partial<Category>,
+    ) => {
+      const isFormData =
+        typeof FormData !== "undefined" &&
+        data instanceof FormData;
+
+      return api<
         Category | {
           data: Category;
         }
       >("/categories", {
         method: "POST",
-        body: JSON.stringify(data),
-      }).then(unwrap),
+        body: isFormData
+          ? data
+          : JSON.stringify(data),
+      }).then(unwrap);
+    },
 
+    /*
+     * Update category.
+     *
+     * Supports:
+     * - FormData for replacing category image
+     * - Normal JSON update
+     *
+     * When FormData is used, Laravel receives:
+     *
+     * POST /categories/{id}
+     * _method=PUT
+     */
     update: (
       id: number,
-      data: Partial<Category>,
-    ) =>
-      api<
+      data:
+        | FormData
+        | Partial<Category>,
+    ) => {
+      const isFormData =
+        typeof FormData !== "undefined" &&
+        data instanceof FormData;
+
+      if (isFormData) {
+        /*
+         * Laravel/PHP multipart PUT workaround.
+         */
+        if (!data.has("_method")) {
+          data.append("_method", "PUT");
+        }
+
+        return api<
+          Category | {
+            data: Category;
+          }
+        >(`/categories/${id}`, {
+          method: "POST",
+          body: data,
+        }).then(unwrap);
+      }
+
+      /*
+       * Normal JSON update.
+       */
+      return api<
         Category | {
           data: Category;
         }
       >(`/categories/${id}`, {
         method: "PUT",
         body: JSON.stringify(data),
-      }).then(unwrap),
+      }).then(unwrap);
+    },
 
+    /*
+     * Delete category.
+     */
     delete: (id: number) =>
       api<ApiMessage>(
         `/categories/${id}`,
@@ -750,6 +832,12 @@ export const adminApi = {
         },
       ),
   },
+
+  /*
+  |--------------------------------------------------------------------------
+  | Admin Orders
+  |--------------------------------------------------------------------------
+  */
 
   orders: {
     list: (
@@ -778,6 +866,12 @@ export const adminApi = {
         }),
       }).then(unwrap),
   },
+
+  /*
+  |--------------------------------------------------------------------------
+  | Admin Reviews
+  |--------------------------------------------------------------------------
+  */
 
   reviews: {
     list: (

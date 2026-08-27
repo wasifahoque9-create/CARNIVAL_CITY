@@ -15,6 +15,7 @@ class Category extends Model
         'name',
         'slug',
         'type',
+        'image_path',
     ];
 
     protected function casts(): array

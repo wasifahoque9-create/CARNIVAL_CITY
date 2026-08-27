@@ -1,4 +1,7 @@
-export type UserRole = "guest" | "customer" | "admin";
+export type UserRole =
+  | "guest"
+  | "customer"
+  | "admin";
 
 export type OrderStatus =
   | "pending"
@@ -7,9 +10,16 @@ export type OrderStatus =
   | "delivered"
   | "cancelled";
 
-export type PaymentStatus = "pending" | "paid" | "failed" | "refunded";
+export type PaymentStatus =
+  | "pending"
+  | "paid"
+  | "failed"
+  | "refunded";
 
-export type ReviewStatus = "pending" | "approved" | "hidden";
+export type ReviewStatus =
+  | "pending"
+  | "approved"
+  | "hidden";
 
 export type CategoryType =
   | "laptop"
@@ -35,6 +45,15 @@ export interface Category {
   name: string;
   slug: string;
   type: CategoryType;
+
+  /*
+   * Category image returned by the Laravel API.
+   *
+   * Example:
+   * https://localhost:8000/storage/categories/laptop.jpg
+   */
+  image_url?: string | null;
+
   children?: Category[];
   created_at?: string;
 }
@@ -68,7 +87,10 @@ export interface Product {
   effective_price?: number;
   stock_qty?: number;
   status?: string;
-  specifications?: Record<string, string | number | boolean> | null;
+  specifications?: Record<
+    string,
+    string | number | boolean
+  > | null;
   warranty_months?: number | null;
   sku?: string | null;
   average_rating?: number | null;
@@ -87,7 +109,10 @@ export interface Review {
   comment: string;
   status: ReviewStatus;
   user?: Pick<User, "id" | "name">;
-  product?: Pick<Product, "id" | "name" | "slug">;
+  product?: Pick<
+    Product,
+    "id" | "name" | "slug"
+  >;
   created_at: string;
 }
 

@@ -135,8 +135,7 @@ const heroSlides = [
         <span className="text-[#F59E0B]">Smart Cameras</span>
       </>
     ),
-    description:
-      "Power, performance, and productivity in one setup",
+    description: "Power, performance, and productivity in one setup",
     price: "189",
     discount: "Save up to 30%",
     image: "/sle1.png",
@@ -222,9 +221,9 @@ export default function HomePage() {
       {/* Hero promotional section */}
       <section className="px-4 pb-5 pt-6 sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-7xl grid-cols-1 gap-4 lg:grid-cols-12">
-          {/* Main large promotional banner — now a 3-slide Swiper carousel */}
+          {/* Main large promotional banner */}
           <article className="relative min-h-[450px] overflow-hidden rounded-3xl bg-gradient-to-br from-[#121358] via-[#242675] to-[#4b4eb5] text-white shadow-xl sm:min-h-[410px] lg:col-span-8">
-            {/* Decorative background — stays fixed across slides */}
+            {/* Decorative background */}
             <div className="pointer-events-none absolute -left-24 -top-24 z-0 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
             <div className="pointer-events-none absolute -bottom-32 right-10 z-0 h-80 w-80 rounded-full bg-[#F59E0B]/30 blur-3xl" />
 
@@ -232,7 +231,9 @@ export default function HomePage() {
               modules={[Autoplay]}
               autoplay={{ delay: 5000, disableOnInteraction: false }}
               loop
-              onSlideChange={(swiper) => setActiveHeroSlide(swiper.realIndex)}
+              onSlideChange={(swiper) =>
+                setActiveHeroSlide(swiper.realIndex)
+              }
               className="hero-swiper relative z-10"
             >
               {heroSlides.map((slide, index) => (
@@ -257,6 +258,7 @@ export default function HomePage() {
                           <p className="text-xs font-medium uppercase tracking-wider text-white/60">
                             Starting from
                           </p>
+
                           <p className="mt-1 text-3xl font-black text-white">
                             ${slide.price}
                             <span className="text-base font-semibold text-white/60">
@@ -276,6 +278,7 @@ export default function HomePage() {
                           className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#F59E0B] px-6 py-3 text-sm font-bold text-white shadow-lg transition duration-300 hover:-translate-y-0.5 hover:bg-[#dc8908] hover:shadow-xl"
                         >
                           Shop Now
+
                           <svg
                             className="h-4 w-4"
                             fill="none"
@@ -316,7 +319,7 @@ export default function HomePage() {
               ))}
             </Swiper>
 
-            {/* Custom slide indicators, driven by Swiper's onSlideChange */}
+            {/* Custom slide indicators */}
             <div className="absolute bottom-5 left-1/2 z-20 flex -translate-x-1/2 gap-2 sm:left-auto sm:right-8 sm:translate-x-0">
               {heroSlides.map((slide, index) => (
                 <span
@@ -445,6 +448,7 @@ export default function HomePage() {
             title="Easy Returns"
             description="Simple return process"
           />
+
           <ServiceItem
             icon={<Headphones size={22} strokeWidth={2.2} />}
             title="Customer Support"
@@ -454,7 +458,10 @@ export default function HomePage() {
       </section>
 
       {/* Shop by category */}
-      <section id="shop-by-category" className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+      <section
+        id="shop-by-category"
+        className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8"
+      >
         <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#F59E0B]">
@@ -510,27 +517,41 @@ export default function HomePage() {
                   ""
                 ).toLowerCase();
 
-                const categoryImageUrl = (category as CategoryWithImage).image_url
-                  ? (category as CategoryWithImage).image_url!.replace(
-                    "http://",
-                    "https://",
-                  )
+                /*
+                 * Category image comes from the backend.
+                 *
+                 * Do NOT force http:// to https:// here.
+                 * During local development Laravel normally serves images
+                 * through http://localhost:8000/storage/...
+                 */
+                const categoryImageUrl = (
+                  category as CategoryWithImage
+                ).image_url
+                  ? (category as CategoryWithImage).image_url
                   : null;
 
                 return (
-                  <SwiperSlide key={category.id}>
-                    <Link
-                      href={`/categories/${category.slug}`}
-                      className="group relative block overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 text-center shadow-sm transition duration-300 hover:-translate-y-1 hover:border-[#F59E0B]/50 hover:shadow-lg sm:p-6"
-                    >
-                      <div className="pointer-events-none absolute -right-8 -top-8 h-20 w-20 rounded-full bg-[#F59E0B]/10 transition duration-300 group-hover:scale-150" />
+                  <SwiperSlide
+                    key={category.id}
+                    className="!h-auto"
+                  >
+                  <Link
+    href={`/categories/${category.slug}`}
+    className="group relative flex h-[220px] w-full flex-col items-center overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm transition duration-300 hover:-translate-y-1 hover:border-[#F59E0B]/50 hover:shadow-lg sm:p-4"
+  >
+    {/* Decorative circle */}
+    <div className="pointer-events-none absolute -right-8 -top-8 h-20 w-20 rounded-full bg-[#F59E0B]/10 transition duration-300 group-hover:scale-150" />
 
-                      <div className="relative mx-auto flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl bg-[#121358]/5 transition duration-300 group-hover:bg-white group-hover:scale-105">
-                        {categoryImageUrl ? (
-                          <img
-                            src={categoryImageUrl}
-                            alt={category.name}
-                            className="h-full w-full object-contain p-2"
+    {/* Category image */}
+    <div className="relative mx-auto flex h-17 w-17 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#121358]/5 transition duration-300 group-hover:scale-105 group-hover:bg-white">
+      {categoryImageUrl ? (
+        <img
+          src={categoryImageUrl}
+          alt={category.name}
+          className="h-full w-full object-contain p-2"
+          onError={(event) => {
+            event.currentTarget.style.display = "none";
+                            }}
                           />
                         ) : (
                           <span className="text-3xl">
@@ -539,10 +560,16 @@ export default function HomePage() {
                         )}
                       </div>
 
-                      <span className="relative mt-4 block text-sm font-bold text-slate-800 transition group-hover:text-[#121358]">
-                        {category.name}
+                      {/* Category name
+                          Fixed height prevents cards with two-line
+                          category names from becoming taller. */}
+                      <span className="relative mt-4 flex h-10 w-full items-center justify-center text-sm font-bold leading-5 text-slate-800 transition group-hover:text-[#121358]">
+                        <span className="line-clamp-2">
+                          {category.name}
+                        </span>
                       </span>
 
+                      {/* Bottom text */}
                       <span className="relative mt-2 inline-block text-xs font-semibold text-slate-400 transition group-hover:text-[#F59E0B]">
                         Explore products
                       </span>
@@ -597,17 +624,25 @@ type ServiceItemProps = {
   description: string;
 };
 
-function ServiceItem({ icon, title, description }: ServiceItemProps) {
+function ServiceItem({
+  icon,
+  title,
+  description,
+}: ServiceItemProps) {
   return (
     <div className="flex items-center gap-3 border-b border-r border-slate-200 p-4 transition hover:bg-slate-50 sm:p-5 lg:border-b-0">
-    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#F59E0B]/10 text-[#121358]">
-    {icon}
-</div>
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#F59E0B]/10 text-[#121358]">
+        {icon}
+      </div>
 
       <div className="min-w-0">
-        <h3 className="text-sm font-bold text-[#121358]">{title}</h3>
+        <h3 className="text-sm font-bold text-[#121358]">
+          {title}
+        </h3>
 
-        <p className="mt-0.5 text-xs text-slate-500">{description}</p>
+        <p className="mt-0.5 text-xs text-slate-500">
+          {description}
+        </p>
       </div>
     </div>
   );

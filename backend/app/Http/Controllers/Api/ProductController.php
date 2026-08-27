@@ -432,6 +432,27 @@ public function show(
         ),
     ]);
 }
+public function adminShow(
+    Product $product,
+): JsonResponse {
+    $product->load([
+        'category',
+        'categories',
+        'images',
+        'variants',
+        'approvedReviews',
+    ]);
+
+    $product->loadCount(
+        'approvedReviews',
+    );
+
+    return response()->json([
+        'data' => new ProductResource(
+            $product,
+        ),
+    ]);
+}
 
 /*
 |--------------------------------------------------------------------------
@@ -622,65 +643,243 @@ public function store(
      |--------------------------------------------------------------------------
      */
 
-     public function update(
-         UpdateProductRequest $request,
-         Product $product,
-     ): JsonResponse {
-         $data = $request->validated();
+public function update(
+    UpdateProductRequest $request,
+    Product $product,
+): JsonResponse {
+    $data = $request->validated();
 
-         /*
-          * Remove relationship fields before updating
-          * the products table.
-          */
+    $storedImagePaths = [];
+    $storedThumbnailPaths = [];
 
-         $product->update(
-             collect($data)
-                 ->except([
-                     'category_ids',
-                     'images',
-                     'variants',
-                 ])
-                 ->toArray(),
-         );
+    DB::beginTransaction();
 
-         /*
-          * Only update category relations when
-          * category_ids were included in the request.
-          */
+    try {
+        /*
+        |--------------------------------------------------------------------------
+        | Update product information
+        |--------------------------------------------------------------------------
+        */
 
-         if (
-             array_key_exists(
-                 'category_ids',
-                 $data,
-             )
-         ) {
-             $this->syncCategories(
-                 $product,
-                 $data,
-             );
-         }
+        $product->update(
+            collect($data)
+                ->except([
+                    'category_ids',
+                    'images',
+                    'variants',
+                ])
+                ->toArray(),
+        );
 
-         $product->load([
-             'category',
-             'categories',
-             'images',
-             'variants',
-             'approvedReviews',
-         ]);
+        /*
+        |--------------------------------------------------------------------------
+        | Update categories
+        |--------------------------------------------------------------------------
+        */
 
-         $product->loadCount(
-             'approvedReviews',
-         );
+        if (
+            array_key_exists(
+                'category_ids',
+                $data,
+            )
+        ) {
+            $this->syncCategories(
+                $product,
+                $data,
+            );
+        }
 
-         return response()->json([
-             'message' =>
-                 'Product updated successfully.',
+        /*
+        |--------------------------------------------------------------------------
+        | Replace product images
+        |--------------------------------------------------------------------------
+        */
 
-             'data' =>
-                 new ProductResource($product),
-         ]);
-     }
+        if ($request->hasFile('images')) {
+            /*
+            | Get existing images before deleting them.
+            */
 
+            $oldImages = $product->images()->get();
+
+            /*
+            | Delete old image files from local storage.
+            */
+
+            foreach ($oldImages as $oldImage) {
+                if (
+                    $oldImage->image_path &&
+                    !preg_match(
+                        '/^https?:\/\//i',
+                        $oldImage->image_path
+                    )
+                ) {
+                    Storage::disk('public')->delete(
+                        $oldImage->image_path
+                    );
+                }
+
+                if (
+                    $oldImage->thumbnail_path &&
+                    !preg_match(
+                        '/^https?:\/\//i',
+                        $oldImage->thumbnail_path
+                    )
+                ) {
+                    Storage::disk('public')->delete(
+                        $oldImage->thumbnail_path
+                    );
+                }
+            }
+
+            /*
+            | Delete old image database records.
+            */
+
+            $product->images()->delete();
+
+            /*
+            | Upload new images.
+            */
+
+            $uploadedImages = $request->file(
+                'images',
+                [],
+            );
+
+            foreach (
+                $uploadedImages as $index => $image
+            ) {
+                $uploaded = $this->uploadProductImage(
+                    $image
+                );
+
+                $imagePath =
+                    $uploaded['image_path'];
+
+                $thumbnailPath =
+                    $uploaded['thumbnail_path'];
+
+                $storedImagePaths[] =
+                    $imagePath;
+
+                if ($thumbnailPath) {
+                    $storedThumbnailPaths[] =
+                        $thumbnailPath;
+                }
+
+                $product->images()->create([
+                    'image_path' =>
+                        $imagePath,
+
+                    'thumbnail_path' =>
+                        $thumbnailPath,
+
+                    'alt_text' =>
+                        $product->name,
+
+                    'is_primary' =>
+                        $index === 0,
+
+                    'sort_order' =>
+                        $index,
+                ]);
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Update variants
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            array_key_exists(
+                'variants',
+                $data
+            )
+        ) {
+            $product->variants()->delete();
+
+            $this->syncVariants(
+                $product,
+                $data['variants'] ?? [],
+            );
+        }
+
+        DB::commit();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Load updated product
+        |--------------------------------------------------------------------------
+        */
+
+        $product->load([
+            'category',
+            'categories',
+            'images',
+            'variants',
+            'approvedReviews',
+        ]);
+
+        $product->loadCount(
+            'approvedReviews',
+        );
+
+        return response()->json([
+            'message' =>
+                'Product updated successfully.',
+
+            'data' =>
+                new ProductResource($product),
+        ]);
+    } catch (Throwable $exception) {
+        DB::rollBack();
+
+        /*
+        | Delete newly uploaded files if
+        | something failed during the update.
+        */
+
+        foreach ($storedImagePaths as $imagePath) {
+            if (
+                !preg_match(
+                    '/^https?:\/\//i',
+                    $imagePath
+                )
+            ) {
+                Storage::disk('public')->delete(
+                    $imagePath
+                );
+            }
+        }
+
+        foreach ($storedThumbnailPaths as $thumbnailPath) {
+            if (
+                !preg_match(
+                    '/^https?:\/\//i',
+                    $thumbnailPath
+                )
+            ) {
+                Storage::disk('public')->delete(
+                    $thumbnailPath
+                );
+            }
+        }
+
+        report($exception);
+
+        return response()->json([
+            'message' =>
+                'Product could not be updated.',
+
+            'error' => config('app.debug')
+                ? $exception->getMessage()
+                : null,
+        ], 500);
+    }
+}
      /*
      |--------------------------------------------------------------------------
      | Archive product
