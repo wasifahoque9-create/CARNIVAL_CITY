@@ -60,6 +60,23 @@ export function setToken(token: string | null): void {
   }
 }
 
+const GUEST_TOKEN_KEY = "guest_token";
+
+function getGuestToken(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  let guestToken = localStorage.getItem(GUEST_TOKEN_KEY);
+
+  if (!guestToken) {
+    guestToken = crypto.randomUUID();
+    localStorage.setItem(GUEST_TOKEN_KEY, guestToken);
+  }
+
+  return guestToken;
+}
+
 /*
 |--------------------------------------------------------------------------
 | Query-string helper
@@ -130,6 +147,12 @@ export async function api<T>(
 
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const guestToken = getGuestToken();
+
+  if (guestToken) {
+    headers.set("X-Guest-Token", guestToken);
   }
 
   const response = await fetch(

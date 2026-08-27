@@ -12,126 +12,281 @@ use Illuminate\Validation\ValidationException;
 
 class CartService
 {
+    /*
+     * Existing logged-in customer behavior remains unchanged.
+     */
     public function getOrCreateCart(User $user): Cart
     {
-        return Cart::firstOrCreate(['user_id' => $user->id]);
+        return Cart::firstOrCreate([
+            'user_id' => $user->id,
+        ]);
     }
 
-    public function getCartSummary(User $user): array
+    /*
+     * Accept either:
+     * - a registered User
+     * - a Cart already resolved for a guest
+     */
+    private function resolveCart(User|Cart $owner): Cart
     {
-        $cart = $this->getOrCreateCart($user);
-        $cart->load(['items.product', 'items.variant']);
+        if ($owner instanceof Cart) {
+            return $owner;
+        }
+
+        return $this->getOrCreateCart($owner);
+    }
+
+    public function getCartSummary(User|Cart $owner): array
+    {
+        $cart = $this->resolveCart($owner);
+
+        $cart->load([
+            'items.product',
+            'items.variant',
+        ]);
 
         $subtotal = 0.0;
         $discountTotal = 0.0;
 
         foreach ($cart->items as $item) {
             $lineTotal = $item->lineTotal();
+
             $subtotal += $lineTotal;
 
             if ($item->product->discount_price) {
-                $regular = (float) $item->product->price * $item->quantity;
+                $regular =
+                    (float) $item->product->price
+                    * $item->quantity;
+
                 if ($item->variant) {
-                    $regular += (float) $item->variant->price_adjustment * $item->quantity;
+                    $regular +=
+                        (float) $item->variant->price_adjustment
+                        * $item->quantity;
                 }
-                $discountTotal += max(0, $regular - $lineTotal);
+
+                $discountTotal += max(
+                    0,
+                    $regular - $lineTotal
+                );
             }
         }
 
         return [
             'cart' => $cart,
-            'subtotal' => round($subtotal, 2),
-            'discount_total' => round($discountTotal, 2),
-            'total' => round($subtotal, 2),
-            'item_count' => $cart->items->sum('quantity'),
+
+            'subtotal' => round(
+                $subtotal,
+                2
+            ),
+
+            'discount_total' => round(
+                $discountTotal,
+                2
+            ),
+
+            'total' => round(
+                $subtotal,
+                2
+            ),
+
+            'item_count' =>
+                $cart->items->sum('quantity'),
         ];
     }
 
-    public function addItem(User $user, int $productId, ?int $variantId, int $quantity): Cart
-    {
-        $product = Product::query()->where('status', 'active')->findOrFail($productId);
+    public function addItem(
+        User|Cart $owner,
+        int $productId,
+        ?int $variantId,
+        int $quantity
+    ): Cart {
+        if ($quantity <= 0) {
+            throw ValidationException::withMessages([
+                'quantity' => [
+                    'Quantity must be at least 1.',
+                ],
+            ]);
+        }
+
+        $product = Product::query()
+            ->where('status', 'active')
+            ->findOrFail($productId);
+
         $variant = null;
 
         if ($variantId) {
             $variant = ProductVariant::query()
-                ->where('product_id', $product->id)
+                ->where(
+                    'product_id',
+                    $product->id
+                )
                 ->findOrFail($variantId);
-            $this->assertStock($variant->stock_qty, $quantity, 'Selected variant is out of stock.');
+
+            $this->assertStock(
+                $variant->stock_qty,
+                $quantity,
+                'Selected variant is out of stock.'
+            );
         } else {
-            $this->assertStock($product->stock_qty, $quantity, 'Product is out of stock.');
+            $this->assertStock(
+                $product->stock_qty,
+                $quantity,
+                'Product is out of stock.'
+            );
         }
 
-        $cart = $this->getOrCreateCart($user);
+        $cart = $this->resolveCart($owner);
 
-        return DB::transaction(function () use ($cart, $product, $variant, $quantity) {
-            $item = CartItem::query()->where([
-                'cart_id' => $cart->id,
-                'product_id' => $product->id,
-                'product_variant_id' => $variant?->id,
-            ])->first();
+        return DB::transaction(
+            function () use (
+                $cart,
+                $product,
+                $variant,
+                $quantity
+            ) {
+                $item = CartItem::query()
+                    ->where([
+                        'cart_id' =>
+                            $cart->id,
 
-            if ($item) {
-                $newQty = $item->quantity + $quantity;
-                $available = $variant ? $variant->stock_qty : $product->stock_qty;
-                $this->assertStock($available, $newQty, 'Insufficient stock for requested quantity.');
-                $item->update(['quantity' => $newQty]);
-            } else {
-                CartItem::create([
-                    'cart_id' => $cart->id,
-                    'product_id' => $product->id,
-                    'product_variant_id' => $variant?->id,
-                    'quantity' => $quantity,
+                        'product_id' =>
+                            $product->id,
+
+                        'product_variant_id' =>
+                            $variant?->id,
+                    ])
+                    ->first();
+
+                if ($item) {
+                    $newQty =
+                        $item->quantity
+                        + $quantity;
+
+                    $available = $variant
+                        ? $variant->stock_qty
+                        : $product->stock_qty;
+
+                    $this->assertStock(
+                        $available,
+                        $newQty,
+                        'Insufficient stock for requested quantity.'
+                    );
+
+                    $item->update([
+                        'quantity' => $newQty,
+                    ]);
+                } else {
+                    CartItem::create([
+                        'cart_id' =>
+                            $cart->id,
+
+                        'product_id' =>
+                            $product->id,
+
+                        'product_variant_id' =>
+                            $variant?->id,
+
+                        'quantity' =>
+                            $quantity,
+                    ]);
+                }
+
+                return $cart->fresh([
+                    'items.product',
+                    'items.variant',
                 ]);
             }
-
-            return $cart->fresh(['items.product', 'items.variant']);
-        });
+        );
     }
 
-    public function updateItem(User $user, int $cartItemId, int $quantity): Cart
-    {
-        $cart = $this->getOrCreateCart($user);
+    public function updateItem(
+        User|Cart $owner,
+        int $cartItemId,
+        int $quantity
+    ): Cart {
+        $cart = $this->resolveCart($owner);
+
         $item = CartItem::query()
-            ->where('cart_id', $cart->id)
-            ->with(['product', 'variant'])
+            ->where(
+                'cart_id',
+                $cart->id
+            )
+            ->with([
+                'product',
+                'variant',
+            ])
             ->findOrFail($cartItemId);
 
         if ($quantity <= 0) {
             throw ValidationException::withMessages([
-                'quantity' => ['Quantity must be at least 1.'],
+                'quantity' => [
+                    'Quantity must be at least 1.',
+                ],
             ]);
         }
 
-        $available = $item->variant ? $item->variant->stock_qty : $item->product->stock_qty;
-        $this->assertStock($available, $quantity, 'Insufficient stock for requested quantity.');
+        $available = $item->variant
+            ? $item->variant->stock_qty
+            : $item->product->stock_qty;
 
-        $item->update(['quantity' => $quantity]);
+        $this->assertStock(
+            $available,
+            $quantity,
+            'Insufficient stock for requested quantity.'
+        );
 
-        return $cart->fresh(['items.product', 'items.variant']);
+        $item->update([
+            'quantity' => $quantity,
+        ]);
+
+        return $cart->fresh([
+            'items.product',
+            'items.variant',
+        ]);
     }
 
-    public function removeItem(User $user, int $cartItemId): Cart
-    {
-        $cart = $this->getOrCreateCart($user);
+    public function removeItem(
+        User|Cart $owner,
+        int $cartItemId
+    ): Cart {
+        $cart = $this->resolveCart($owner);
 
         CartItem::query()
-            ->where('cart_id', $cart->id)
-            ->where('id', $cartItemId)
+            ->where(
+                'cart_id',
+                $cart->id
+            )
+            ->where(
+                'id',
+                $cartItemId
+            )
             ->delete();
 
-        return $cart->fresh(['items.product', 'items.variant']);
+        return $cart->fresh([
+            'items.product',
+            'items.variant',
+        ]);
     }
 
-    public function clearCart(User $user): void
-    {
-        $cart = $this->getOrCreateCart($user);
+    public function clearCart(
+        User|Cart $owner
+    ): void {
+        $cart = $this->resolveCart($owner);
+
         $cart->items()->delete();
     }
 
-    private function assertStock(int $available, int $requested, string $message): void
-    {
+    private function assertStock(
+        int $available,
+        int $requested,
+        string $message
+    ): void {
         if ($requested > $available) {
-            throw ValidationException::withMessages(['quantity' => [$message]]);
+            throw ValidationException::withMessages([
+                'quantity' => [
+                    $message,
+                ],
+            ]);
         }
     }
 }

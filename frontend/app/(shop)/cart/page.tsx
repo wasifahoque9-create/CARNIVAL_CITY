@@ -19,8 +19,10 @@ import {
   FaMicrochip,
   FaRotate,
   FaShieldHalved,
+  
   FaTruckFast,
 } from "react-icons/fa6";
+import { FaWhatsapp } from "react-icons/fa";
 
 import CartItemRow from "@/components/cart/CartItemRow";
 import { PageLoader } from "@/components/ui/Spinner";
@@ -191,6 +193,49 @@ try {
   const subtotal = Number(
     cart?.subtotal ?? 0,
   );
+
+  const whatsappNumber =
+    process.env.NEXT_PUBLIC_WHATSAPP_NUMBER?.replace(
+      /\D/g,
+      "",
+    ) ?? "";
+
+  const whatsappMessage = cart
+    ? [
+        "Hello ShopSphere, I would like to place an order.",
+        "",
+        "Order Details:",
+        ...cart.items.map(
+          (item, index) =>
+            `${index + 1}. ${item.product?.name ?? "Product"} x${item.quantity}`,
+        ),
+        "",
+        `Items: ${itemCount}`,
+        `Subtotal: ${formatPrice(subtotal)}`,
+        "",
+        "Please confirm availability and delivery details.",
+      ].join("\n")
+    : "";
+
+  const whatsappOrderUrl = whatsappNumber
+    ? `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(
+        whatsappMessage,
+      )}`
+    : "#";
+
+  function handleWhatsAppOrder(
+    event: import("react").MouseEvent<HTMLAnchorElement>,
+  ) {
+    if (whatsappNumber) {
+      return;
+    }
+
+    event.preventDefault();
+
+    setError(
+      "WhatsApp ordering is not configured yet. Add NEXT_PUBLIC_WHATSAPP_NUMBER to frontend/.env.local.",
+    );
+  }
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#f4f5ff]">
@@ -466,6 +511,25 @@ try {
                         className="relative transition-transform group-hover:translate-x-1"
                       />
                     </Link>
+
+                    <a
+                      href={whatsappOrderUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={handleWhatsAppOrder}
+                      className="group mt-3 flex w-full items-center justify-center gap-3 rounded-2xl bg-[#25D366] px-5 py-4 text-sm font-black text-white shadow-lg shadow-emerald-500/20 transition hover:-translate-y-1 hover:bg-[#20bd5a] hover:shadow-xl"
+                    >
+                      <FaWhatsapp className="text-xl" />
+
+                      <span>
+                        Order via WhatsApp
+                      </span>
+
+                      <FaChevronRight
+                        size={11}
+                        className="transition-transform group-hover:translate-x-1"
+                      />
+                    </a>
 
                     <p className="mt-4 flex items-center justify-center gap-2 text-center text-xs text-slate-400">
                       <FaShieldHalved className="text-emerald-500" />
