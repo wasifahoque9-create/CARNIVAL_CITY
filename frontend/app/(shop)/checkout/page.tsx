@@ -19,6 +19,7 @@ import {
   FaChevronRight,
   FaCircleExclamation,
   FaCreditCard,
+  FaDownload,
   FaFingerprint,
   FaHeadset,
   FaLocationDot,
@@ -27,6 +28,7 @@ import {
   FaMoneyBillWave,
   FaPlus,
   FaShieldHalved,
+  FaStore,
   FaTruckFast,
   FaXmark,
 } from "react-icons/fa6";
@@ -36,6 +38,7 @@ import { useAuth } from "@/lib/auth";
 import { useCart } from "@/lib/cart";
 import {
   addressApi,
+  businessSettingsApi,
   cartApi,
   formatPrice,
   orderApi,
@@ -44,6 +47,7 @@ import type {
   Address,
   Cart,
   CheckoutPayload,
+  DeliveryMethod,
   Order,
 } from "@/types";
 
@@ -110,6 +114,23 @@ export default function CheckoutPage() {
     setPaymentMethod,
   ] = useState<PaymentMethod>("cod");
 
+  const [
+    deliveryMethod,
+    setDeliveryMethod,
+  ] = useState<DeliveryMethod>(
+    "home_delivery",
+  );
+
+  const [
+    deliveryCharge,
+    setDeliveryCharge,
+  ] = useState(0);
+
+  const [
+    pickupAddress,
+    setPickupAddress,
+  ] = useState("");
+
   const [guest, setGuest] =
     useState(INITIAL_GUEST);
 
@@ -155,16 +176,35 @@ export default function CheckoutPage() {
         setError("");
 
         if (user) {
-          const [cartData, addressData] =
-            await Promise.all([
-              cartApi.get(),
-              addressApi.list(),
-            ]);
+          const [
+            cartData,
+            addressData,
+            businessSettings,
+          ] = await Promise.all([
+            cartApi.get(),
+            addressApi.list(),
+            businessSettingsApi.get(),
+          ]);
 
           if (!pageIsActive) return;
 
           setCart(cartData);
           setAddresses(addressData);
+
+          setDeliveryCharge(
+            Math.max(
+              0,
+              Number(
+                businessSettings
+                  .delivery_charge ?? 0,
+              ),
+            ),
+          );
+
+          setPickupAddress(
+            businessSettings
+              .business_address || "",
+          );
 
           const defaultAddress =
             addressData.find(
@@ -178,14 +218,34 @@ export default function CheckoutPage() {
             );
           }
         } else {
-          const cartData =
-            await cartApi.get();
+          const [
+            cartData,
+            businessSettings,
+          ] = await Promise.all([
+            cartApi.get(),
+            businessSettingsApi.get(),
+          ]);
 
           if (!pageIsActive) return;
 
           setCart(cartData);
           setAddresses([]);
           setAddressId("");
+
+          setDeliveryCharge(
+            Math.max(
+              0,
+              Number(
+                businessSettings
+                  .delivery_charge ?? 0,
+              ),
+            ),
+          );
+
+          setPickupAddress(
+            businessSettings
+              .business_address || "",
+          );
         }
       } catch (error) {
         console.error(
@@ -232,6 +292,15 @@ export default function CheckoutPage() {
         Number(item.quantity ?? 0),
       0,
     ) ?? 0;
+
+  const appliedDeliveryCharge =
+    deliveryMethod === "home_delivery"
+      ? deliveryCharge
+      : 0;
+
+  const finalOrderTotal =
+    Number(cart?.total ?? 0) +
+    appliedDeliveryCharge;
 
   async function handleAddAddress() {
     if (!user) {
@@ -315,33 +384,40 @@ export default function CheckoutPage() {
     }
 
     if (
-      !guest.guest_address_line1.trim()
+      deliveryMethod ===
+      "home_delivery"
     ) {
-      setError(
-        "Address Line 1 is required.",
-      );
-      return false;
-    }
+      if (
+        !guest.guest_address_line1.trim()
+      ) {
+        setError(
+          "Address Line 1 is required.",
+        );
+        return false;
+      }
 
-    if (!guest.guest_city.trim()) {
-      setError("City is required.");
-      return false;
-    }
+      if (!guest.guest_city.trim()) {
+        setError("City is required.");
+        return false;
+      }
 
-    if (
-      !guest.guest_postal_code.trim()
-    ) {
-      setError(
-        "Postal code is required.",
-      );
-      return false;
-    }
+      if (
+        !guest.guest_postal_code.trim()
+      ) {
+        setError(
+          "Postal code is required.",
+        );
+        return false;
+      }
 
-    if (
-      !guest.guest_country.trim()
-    ) {
-      setError("Country is required.");
-      return false;
+      if (
+        !guest.guest_country.trim()
+      ) {
+        setError(
+          "Country is required.",
+        );
+        return false;
+      }
     }
 
     return true;
@@ -357,7 +433,12 @@ export default function CheckoutPage() {
       return;
     }
 
-    if (user && !addressId) {
+    if (
+      user &&
+      deliveryMethod ===
+        "home_delivery" &&
+      !addressId
+    ) {
       setError(
         "Please select a shipping address.",
       );
@@ -375,13 +456,54 @@ export default function CheckoutPage() {
       const payload: CheckoutPayload =
         user
           ? {
+              delivery_method:
+                deliveryMethod,
+
               shipping_address_id:
-                Number(addressId),
+                deliveryMethod ===
+                "home_delivery"
+                  ? Number(addressId)
+                  : null,
+
               payment_method:
                 paymentMethod,
             }
           : {
-              ...guest,
+              delivery_method:
+                deliveryMethod,
+
+              guest_name:
+                guest.guest_name,
+
+              guest_email:
+                guest.guest_email,
+
+              guest_phone:
+                guest.guest_phone,
+
+              ...(deliveryMethod ===
+              "home_delivery"
+                ? {
+                    guest_address_line1:
+                      guest
+                        .guest_address_line1,
+
+                    guest_address_line2:
+                      guest
+                        .guest_address_line2,
+
+                    guest_city:
+                      guest.guest_city,
+
+                    guest_postal_code:
+                      guest
+                        .guest_postal_code,
+
+                    guest_country:
+                      guest.guest_country,
+                  }
+                : {}),
+
               payment_method:
                 paymentMethod,
             };
@@ -554,10 +676,85 @@ export default function CheckoutPage() {
 
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_390px]">
           <div className="space-y-6">
+            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-[#121358]/5">
+              <SectionHeading
+                number="01"
+                eyebrow="Fulfilment option"
+                title="Delivery Method"
+                description="Choose Home Delivery or collect your order from the store."
+              />
+
+              <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
+                <DeliveryMethodCard
+                  selected={
+                    deliveryMethod ===
+                    "home_delivery"
+                  }
+                  icon={<FaTruckFast />}
+                  title="Home Delivery"
+                  description="Your order will be delivered to your selected address."
+                  badge={
+                    deliveryCharge > 0
+                      ? formatPrice(
+                          deliveryCharge,
+                        )
+                      : "Free"
+                  }
+                  onClick={() => {
+                    setDeliveryMethod(
+                      "home_delivery",
+                    );
+                    setError("");
+                  }}
+                />
+
+                <DeliveryMethodCard
+                  selected={
+                    deliveryMethod ===
+                    "pickup"
+                  }
+                  icon={<FaStore />}
+                  title="Pickup from Store"
+                  description="Collect your order from the store with no delivery charge."
+                  badge="Free"
+                  onClick={() => {
+                    setDeliveryMethod(
+                      "pickup",
+                    );
+                    setError("");
+                    setShowAddressForm(
+                      false,
+                    );
+                  }}
+                />
+              </div>
+
+              {deliveryMethod ===
+                "pickup" && (
+                <div className="mx-5 mb-5 rounded-xl border border-emerald-100 bg-emerald-50 p-4 sm:mx-6 sm:mb-6">
+                  <p className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-emerald-700">
+                    <FaStore />
+                    Store Pickup Location
+                  </p>
+
+                  <p className="mt-2 text-sm font-bold text-emerald-800">
+                    {pickupAddress ||
+                      "Store address will be confirmed by the business."}
+                  </p>
+
+                  <p className="mt-1 text-xs leading-5 text-emerald-700/75">
+                    Delivery charge for store pickup is 0.
+                  </p>
+                </div>
+              )}
+            </section>
+
             {user ? (
+              deliveryMethod ===
+              "home_delivery" ? (
               <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-[#121358]/5">
                 <SectionHeading
-                  number="01"
+                  number="02"
                   eyebrow="Delivery information"
                   title="Shipping Address"
                   description="Select where you want your order delivered."
@@ -779,13 +976,24 @@ export default function CheckoutPage() {
                   )}
                 </div>
               </section>
+              ) : null
             ) : (
               <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-[#121358]/5">
                 <SectionHeading
-                  number="01"
+                  number="02"
                   eyebrow="Guest checkout"
-                  title="Customer & Delivery Information"
-                  description="No account is required. Enter your information below."
+                  title={
+                    deliveryMethod ===
+                    "home_delivery"
+                      ? "Customer & Delivery Information"
+                      : "Customer Information"
+                  }
+                  description={
+                    deliveryMethod ===
+                    "home_delivery"
+                      ? "No account is required. Enter your customer and delivery information below."
+                      : "No account is required. Enter your contact information for store pickup."
+                  }
                 />
 
                 <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
@@ -836,100 +1044,106 @@ export default function CheckoutPage() {
                     className="sm:col-span-2"
                   />
 
-                  <CheckoutInput
-                    label="Address Line 1"
-                    required
-                    value={
-                      guest.guest_address_line1
-                    }
-                    onChange={(value) =>
-                      setGuest(
-                        (current) => ({
-                          ...current,
-                          guest_address_line1:
-                            value,
-                        }),
-                      )
-                    }
-                    placeholder="House, road or street"
-                    className="sm:col-span-2"
-                  />
+                  {deliveryMethod ===
+                    "home_delivery" && (
+                    <>
+                      <CheckoutInput
+                        label="Address Line 1"
+                        required
+                        value={
+                          guest.guest_address_line1
+                        }
+                        onChange={(value) =>
+                          setGuest(
+                            (current) => ({
+                              ...current,
+                              guest_address_line1:
+                                value,
+                            }),
+                          )
+                        }
+                        placeholder="House, road or street"
+                        className="sm:col-span-2"
+                      />
 
-                  <CheckoutInput
-                    label="Address Line 2"
-                    value={
-                      guest.guest_address_line2
-                    }
-                    onChange={(value) =>
-                      setGuest(
-                        (current) => ({
-                          ...current,
-                          guest_address_line2:
-                            value,
-                        }),
-                      )
-                    }
-                    placeholder="Apartment, suite or floor"
-                    className="sm:col-span-2"
-                  />
+                      <CheckoutInput
+                        label="Address Line 2"
+                        value={
+                          guest.guest_address_line2
+                        }
+                        onChange={(value) =>
+                          setGuest(
+                            (current) => ({
+                              ...current,
+                              guest_address_line2:
+                                value,
+                            }),
+                          )
+                        }
+                        placeholder="Apartment, suite or floor"
+                        className="sm:col-span-2"
+                      />
 
-                  <CheckoutInput
-                    label="City"
-                    required
-                    value={guest.guest_city}
-                    onChange={(value) =>
-                      setGuest(
-                        (current) => ({
-                          ...current,
-                          guest_city: value,
-                        }),
-                      )
-                    }
-                    placeholder="City"
-                  />
+                      <CheckoutInput
+                        label="City"
+                        required
+                        value={guest.guest_city}
+                        onChange={(value) =>
+                          setGuest(
+                            (current) => ({
+                              ...current,
+                              guest_city: value,
+                            }),
+                          )
+                        }
+                        placeholder="City"
+                      />
 
-                  <CheckoutInput
-                    label="Postal Code"
-                    required
-                    value={
-                      guest.guest_postal_code
-                    }
-                    onChange={(value) =>
-                      setGuest(
-                        (current) => ({
-                          ...current,
-                          guest_postal_code:
-                            value,
-                        }),
-                      )
-                    }
-                    placeholder="Postal code"
-                  />
+                      <CheckoutInput
+                        label="Postal Code"
+                        required
+                        value={
+                          guest.guest_postal_code
+                        }
+                        onChange={(value) =>
+                          setGuest(
+                            (current) => ({
+                              ...current,
+                              guest_postal_code:
+                                value,
+                            }),
+                          )
+                        }
+                        placeholder="Postal code"
+                      />
 
-                  <CheckoutInput
-                    label="Country"
-                    required
-                    value={
-                      guest.guest_country
-                    }
-                    onChange={(value) =>
-                      setGuest(
-                        (current) => ({
-                          ...current,
-                          guest_country: value,
-                        }),
-                      )
-                    }
-                    placeholder="Bangladesh"
-                    className="sm:col-span-2"
-                  />
+                      <CheckoutInput
+                        label="Country"
+                        required
+                        value={
+                          guest.guest_country
+                        }
+                        onChange={(value) =>
+                          setGuest(
+                            (current) => ({
+                              ...current,
+                              guest_country:
+                                value,
+                            }),
+                          )
+                        }
+                        placeholder="Bangladesh"
+                        className="sm:col-span-2"
+                      />
+                    </>
+                  )}
                 </div>
               </section>
             )}
 
             <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-[#121358]/5">
               <SectionHeading
-                number="02"
+                number="03"
                 eyebrow="Payment selection"
                 title="Payment Method"
                 description="Choose how you want to pay for this order."
@@ -1083,6 +1297,49 @@ export default function CheckoutPage() {
                   </span>
                 </div>
 
+                <div className="mt-3 flex items-center justify-between text-sm">
+                  <span className="text-slate-500">
+                    Delivery
+                  </span>
+
+                  <span className="font-bold text-[#121358]">
+                    {deliveryMethod ===
+                    "home_delivery"
+                      ? "Home Delivery"
+                      : "Store Pickup"}
+                  </span>
+                </div>
+
+                <div className="my-5 h-px bg-slate-200" />
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-500">
+                      Subtotal
+                    </span>
+
+                    <span className="font-bold text-[#121358]">
+                      {formatPrice(
+                        Number(cart.total),
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-500">
+                      Delivery Charge
+                    </span>
+
+                    <span className="font-bold text-[#121358]">
+                      {appliedDeliveryCharge > 0
+                        ? formatPrice(
+                            appliedDeliveryCharge,
+                          )
+                        : "Free"}
+                    </span>
+                  </div>
+                </div>
+
                 <div className="my-5 h-px bg-slate-200" />
 
                 <div className="flex items-end justify-between gap-4">
@@ -1092,18 +1349,20 @@ export default function CheckoutPage() {
                     </p>
 
                     <p className="mt-1 text-[10px] text-slate-400">
-                      Final cart amount
+                      Products + delivery charge
                     </p>
                   </div>
 
                   <p className="text-2xl font-black text-[#F59E0B]">
                     {formatPrice(
-                      cart.total,
+                      finalOrderTotal,
                     )}
                   </p>
                 </div>
 
                 {user &&
+                  deliveryMethod ===
+                    "home_delivery" &&
                   selectedAddress && (
                     <div className="mt-5 rounded-xl border border-[#121358]/10 bg-[#f8f8ff] p-4">
                       <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-[#121358]">
@@ -1142,12 +1401,36 @@ export default function CheckoutPage() {
                 {!user && (
                   <div className="mt-5 rounded-xl border border-[#121358]/10 bg-[#f8f8ff] p-4">
                     <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-[#121358]">
-                      <FaLocationDot className="text-[#F59E0B]" />
+                      {deliveryMethod ===
+                      "home_delivery" ? (
+                        <FaLocationDot className="text-[#F59E0B]" />
+                      ) : (
+                        <FaStore className="text-[#F59E0B]" />
+                      )}
+
                       Guest Checkout
                     </p>
 
                     <p className="mt-2 text-xs leading-5 text-slate-500">
-                      No login is required. Your delivery details will be attached to this order.
+                      {deliveryMethod ===
+                      "home_delivery"
+                        ? "No login is required. Your delivery details will be attached to this order."
+                        : "No login is required. Bring your order details when collecting from the store."}
+                    </p>
+                  </div>
+                )}
+
+                {deliveryMethod ===
+                  "pickup" && (
+                  <div className="mt-5 rounded-xl border border-emerald-100 bg-emerald-50 p-4">
+                    <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-emerald-700">
+                      <FaStore />
+                      Pickup Location
+                    </p>
+
+                    <p className="mt-2 text-xs font-semibold leading-5 text-emerald-800">
+                      {pickupAddress ||
+                        "Store address will be confirmed by the business."}
                     </p>
                   </div>
                 )}
@@ -1158,6 +1441,8 @@ export default function CheckoutPage() {
                     submitting ||
                     savingAddress ||
                     (Boolean(user) &&
+                      deliveryMethod ===
+                        "home_delivery" &&
                       !addressId)
                   }
                   className="group relative mt-5 flex w-full items-center justify-center gap-3 overflow-hidden rounded-xl bg-gradient-to-r from-[#F59E0B] to-orange-500 px-5 py-4 text-sm font-black text-white shadow-lg shadow-orange-500/25 transition hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:from-slate-300 disabled:to-slate-400 disabled:shadow-none disabled:hover:translate-y-0"
@@ -1479,6 +1764,67 @@ function AddressCard({
   );
 }
 
+type DeliveryMethodCardProps = {
+  selected: boolean;
+  icon: ReactNode;
+  title: string;
+  description: string;
+  badge: string;
+  onClick: () => void;
+};
+
+function DeliveryMethodCard({
+  selected,
+  icon,
+  title,
+  description,
+  badge,
+  onClick,
+}: DeliveryMethodCardProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      className={`relative flex min-h-32 items-center gap-4 rounded-2xl border-2 p-5 text-left transition-all ${
+        selected
+          ? "border-[#F59E0B] bg-[#fffaf0] shadow-lg shadow-[#F59E0B]/10"
+          : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-[#121358]/30 hover:shadow-md"
+      }`}
+    >
+      <span
+        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${
+          selected
+            ? "border-[#F59E0B]"
+            : "border-slate-300"
+        }`}
+      >
+        {selected && (
+          <span className="h-2.5 w-2.5 rounded-full bg-[#F59E0B]" />
+        )}
+      </span>
+
+      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#2634a4] to-[#121358] text-xl text-white">
+        {icon}
+      </span>
+
+      <span className="min-w-0 flex-1">
+        <span className="block font-black text-[#121358]">
+          {title}
+        </span>
+
+        <span className="mt-1 block text-xs leading-5 text-slate-500">
+          {description}
+        </span>
+      </span>
+
+      <span className="shrink-0 rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-black text-emerald-700">
+        {badge}
+      </span>
+    </button>
+  );
+}
+
 type PaymentCardProps = {
   selected: boolean;
   icon: ReactNode;
@@ -1578,11 +1924,50 @@ function OrderSuccess({
 }: {
   order: Order;
 }) {
+  const [
+    downloadingInvoice,
+    setDownloadingInvoice,
+  ] = useState(false);
+
+  const [
+    invoiceError,
+    setInvoiceError,
+  ] = useState("");
+
+  async function handleDownloadInvoice() {
+    if (downloadingInvoice) {
+      return;
+    }
+
+    setDownloadingInvoice(true);
+    setInvoiceError("");
+
+    try {
+      await orderApi.downloadInvoice(
+        order.id,
+      );
+    } catch (error) {
+      console.error(
+        "Guest invoice download failed:",
+        error,
+      );
+
+      setInvoiceError(
+        getErrorMessage(
+          error,
+          "Unable to download your invoice. Please try again.",
+        ),
+      );
+    } finally {
+      setDownloadingInvoice(false);
+    }
+  }
+
   return (
     <main className="relative flex min-h-[75vh] items-center justify-center overflow-hidden bg-[#f4f5ff] px-4 py-16">
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(18,19,88,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(18,19,88,0.035)_1px,transparent_1px)] bg-[size:32px_32px]" />
 
-      <section className="relative mx-auto max-w-2xl rounded-3xl border border-white bg-white p-8 text-center shadow-2xl shadow-[#121358]/10 sm:p-14">
+      <section className="relative mx-auto w-full max-w-2xl rounded-3xl border border-white bg-white p-8 text-center shadow-2xl shadow-[#121358]/10 sm:p-14">
         <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-100 text-3xl text-emerald-600">
           <FaCheck />
         </div>
@@ -1597,6 +1982,7 @@ function OrderSuccess({
 
         <p className="mx-auto mt-4 max-w-md text-sm leading-7 text-slate-500">
           Your guest order has been placed successfully.
+          You can download the invoice now for your records.
         </p>
 
         <div className="mx-auto mt-6 max-w-sm rounded-2xl bg-[#f4f5ff] p-5">
@@ -1612,13 +1998,51 @@ function OrderSuccess({
           </p>
         </div>
 
-        <Link
-          href="/products"
-          className="mt-8 inline-flex items-center gap-3 rounded-2xl bg-gradient-to-r from-[#F59E0B] to-orange-500 px-7 py-3.5 text-sm font-black text-white shadow-lg transition hover:-translate-y-1 hover:shadow-xl"
-        >
-          Continue Shopping
-          <FaChevronRight size={11} />
-        </Link>
+        {invoiceError && (
+          <div
+            role="alert"
+            className="mx-auto mt-5 flex max-w-md items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-left text-xs font-semibold leading-5 text-red-700"
+          >
+            <FaCircleExclamation className="mt-0.5 shrink-0" />
+            <span>{invoiceError}</span>
+          </div>
+        )}
+
+        <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+          <button
+            type="button"
+            onClick={() =>
+              void handleDownloadInvoice()
+            }
+            disabled={downloadingInvoice}
+            className="inline-flex items-center justify-center gap-3 rounded-2xl bg-[#121358] px-7 py-3.5 text-sm font-black text-white shadow-lg shadow-[#121358]/15 transition hover:-translate-y-1 hover:bg-[#292c82] hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+          >
+            {downloadingInvoice ? (
+              <>
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                Preparing Invoice...
+              </>
+            ) : (
+              <>
+                <FaDownload />
+                Download Invoice
+              </>
+            )}
+          </button>
+
+          <Link
+            href="/products"
+            className="inline-flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-[#F59E0B] to-orange-500 px-7 py-3.5 text-sm font-black text-white shadow-lg transition hover:-translate-y-1 hover:shadow-xl"
+          >
+            Continue Shopping
+            <FaChevronRight size={11} />
+          </Link>
+        </div>
+
+        <p className="mx-auto mt-5 max-w-md text-xs leading-5 text-slate-400">
+          Keep this invoice with your order number for
+          future reference and support.
+        </p>
       </section>
     </main>
   );

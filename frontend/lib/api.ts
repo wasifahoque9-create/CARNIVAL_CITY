@@ -848,6 +848,96 @@ export const orderApi = {
         method: "PUT",
       },
     ).then(unwrap),
+
+  /*
+  |--------------------------------------------------------------------------
+  | Download Invoice PDF
+  |--------------------------------------------------------------------------
+  |
+  | Supports:
+  | - Logged-in customer
+  | - Admin
+  | - Guest with matching guest cart token
+  |
+  */
+
+  downloadInvoice: async (
+    id: number | string,
+  ): Promise<void> => {
+    const token = getToken();
+
+    const guestCartToken =
+      getGuestCartToken();
+
+    const headers = new Headers();
+
+    headers.set(
+      "Accept",
+      "application/pdf",
+    );
+
+    if (token) {
+      headers.set(
+        "Authorization",
+        `Bearer ${token}`,
+      );
+    }
+
+    if (guestCartToken) {
+      headers.set(
+        "X-Guest-Cart-Token",
+        guestCartToken,
+      );
+    }
+
+    const response = await fetch(
+      `${API_BASE}/orders/${id}/invoice`,
+      {
+        method: "GET",
+        headers,
+      },
+    );
+
+    if (!response.ok) {
+      const body = await response
+        .json()
+        .catch(() => ({}));
+
+      throw new ApiError(
+        response.status,
+        body.message ||
+          "Unable to download invoice.",
+        body.errors,
+      );
+    }
+
+    const blob =
+      await response.blob();
+
+    const url =
+      window.URL.createObjectURL(
+        blob,
+      );
+
+    const link =
+      document.createElement("a");
+
+    link.href = url;
+
+    link.download = `invoice-${String(
+      id,
+    ).padStart(6, "0")}.pdf`;
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    link.remove();
+
+    window.URL.revokeObjectURL(
+      url,
+    );
+  },
 };
 
 
@@ -962,6 +1052,92 @@ export const quotationApi = {
         body: JSON.stringify(data),
       },
     ),
+
+  /*
+  |--------------------------------------------------------------------------
+  | Download Quotation PDF
+  |--------------------------------------------------------------------------
+  |
+  | customer:
+  |   GET /quotations/{id}/pdf
+  |
+  | admin:
+  |   GET /admin/quotations/{id}/pdf
+  |
+  */
+
+  downloadPdf: async (
+    id: number | string,
+    admin = false,
+  ): Promise<void> => {
+    const token = getToken();
+
+    const headers = new Headers();
+
+    headers.set(
+      "Accept",
+      "application/pdf",
+    );
+
+    if (token) {
+      headers.set(
+        "Authorization",
+        `Bearer ${token}`,
+      );
+    }
+
+    const endpoint = admin
+      ? `/admin/quotations/${id}/pdf`
+      : `/quotations/${id}/pdf`;
+
+    const response = await fetch(
+      `${API_BASE}${endpoint}`,
+      {
+        method: "GET",
+        headers,
+      },
+    );
+
+    if (!response.ok) {
+      const body = await response
+        .json()
+        .catch(() => ({}));
+
+      throw new ApiError(
+        response.status,
+        body.message ||
+          "Unable to download quotation.",
+        body.errors,
+      );
+    }
+
+    const blob =
+      await response.blob();
+
+    const url =
+      window.URL.createObjectURL(
+        blob,
+      );
+
+    const link =
+      document.createElement("a");
+
+    link.href = url;
+
+    link.download = `quotation-${String(
+      id,
+    ).padStart(6, "0")}.pdf`;
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    link.remove();
+
+    window.URL.revokeObjectURL(
+      url,
+    );
+  },
 };
 
 /*
@@ -1271,6 +1447,7 @@ export type BusinessSettings = {
   currency: string;
   facebook_url?: string | null;
   instagram_url?: string | null;
+  delivery_charge: number | string;
   created_at?: string;
   updated_at?: string;
 };
@@ -1285,6 +1462,7 @@ export type BusinessSettingsPayload = {
   currency: string;
   facebook_url?: string | null;
   instagram_url?: string | null;
+  delivery_charge: number;
 };
 
 export const businessSettingsApi = {

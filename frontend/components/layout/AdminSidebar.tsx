@@ -26,6 +26,11 @@ const navItems = [
     icon: "🛒",
   },
   {
+    href: "/admin/quotations",
+    label: "Quotations",
+    icon: "📄",
+  },
+  {
     href: "/admin/reviews",
     label: "Reviews",
     icon: "⭐",

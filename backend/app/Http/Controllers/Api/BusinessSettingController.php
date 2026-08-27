@@ -9,6 +9,9 @@ use Illuminate\Http\Request;
 
 class BusinessSettingController extends Controller
 {
+    /**
+     * Public business settings.
+     */
     public function show(): JsonResponse
     {
         $settings = BusinessSetting::firstOrCreate(
@@ -17,6 +20,7 @@ class BusinessSettingController extends Controller
                 'business_name' => 'ShopSphere',
                 'whatsapp_country_code' => '880',
                 'currency' => 'BDT',
+                'delivery_charge' => 0,
             ]
         );
 
@@ -25,6 +29,9 @@ class BusinessSettingController extends Controller
         ]);
     }
 
+    /**
+     * Admin update business settings.
+     */
     public function update(
         Request $request
     ): JsonResponse {
@@ -82,17 +89,33 @@ class BusinessSettingController extends Controller
                 'url',
                 'max:500',
             ],
+
+            'delivery_charge' => [
+                'required',
+                'numeric',
+                'min:0',
+                'max:99999999.99',
+            ],
         ]);
 
         $settings = BusinessSetting::firstOrCreate(
-            ['id' => 1]
+            ['id' => 1],
+            [
+                'business_name' => 'ShopSphere',
+                'whatsapp_country_code' => '880',
+                'currency' => 'BDT',
+                'delivery_charge' => 0,
+            ]
         );
 
         $settings->update($validated);
 
         return response()->json([
-            'message' => 'Business settings updated successfully.',
-            'data' => $settings->fresh(),
+            'message' =>
+                'Business settings updated successfully.',
+
+            'data' =>
+                $settings->fresh(),
         ]);
     }
 }

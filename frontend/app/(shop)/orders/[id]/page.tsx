@@ -12,7 +12,6 @@ import {
 
 import {
   FaArrowLeft,
-  FaBox,
   FaBoxOpen,
   FaCalendarDays,
   FaCheck,
@@ -20,6 +19,7 @@ import {
   FaCircleExclamation,
   FaClock,
   FaCreditCard,
+  FaDownload,
   FaHeadset,
   FaHouse,
   FaLocationDot,
@@ -109,7 +109,14 @@ function formatTime(
 function getStatusLabel(
   status: string,
 ): string {
-  return String(status)
+  const normalizedStatus =
+    String(status).toLowerCase();
+
+  if (normalizedStatus === "confirmed") {
+    return "Accepted";
+  }
+
+  return normalizedStatus
     .replace(/_/g, " ")
     .replace(/\b\w/g, (letter) =>
       letter.toUpperCase(),
@@ -150,38 +157,19 @@ function getProgressIndex(
   const normalizedStatus =
     status.toLowerCase();
 
-  if (
-    normalizedStatus === "delivered" ||
-    normalizedStatus === "completed"
-  ) {
-    return 4;
-  }
-
-  if (
-    normalizedStatus === "shipped" ||
-    normalizedStatus ===
-      "out_for_delivery"
-  ) {
+  if (normalizedStatus === "delivered") {
     return 3;
   }
 
-  if (
-    normalizedStatus === "processing" ||
-    normalizedStatus === "packed"
-  ) {
+  if (normalizedStatus === "shipped") {
     return 2;
   }
 
-  if (
-    normalizedStatus === "confirmed" ||
-    normalizedStatus === "paid"
-  ) {
+  if (normalizedStatus === "confirmed") {
     return 1;
   }
 
-  if (
-    normalizedStatus === "pending"
-  ) {
+  if (normalizedStatus === "pending") {
     return 0;
   }
 
@@ -213,6 +201,9 @@ export default function OrderDetailPage() {
     useState(true);
 
   const [cancelling, setCancelling] =
+    useState(false);
+
+  const [downloadingInvoice, setDownloadingInvoice] =
     useState(false);
 
   const [error, setError] =
@@ -300,6 +291,33 @@ export default function OrderDetailPage() {
       );
     } finally {
       setCancelling(false);
+    }
+  }
+
+  async function handleDownloadInvoice() {
+    if (!order || downloadingInvoice) {
+      return;
+    }
+
+    setDownloadingInvoice(true);
+    setError("");
+
+    try {
+      await orderApi.downloadInvoice(id);
+    } catch (error) {
+      console.error(
+        "Unable to download invoice:",
+        error,
+      );
+
+      setError(
+        getErrorMessage(
+          error,
+          "Unable to download the invoice.",
+        ),
+      );
+    } finally {
+      setDownloadingInvoice(false);
     }
   }
 
@@ -743,7 +761,7 @@ export default function OrderDetailPage() {
 
         {/* Action area */}
         <section className="mt-7 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+          <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
             <Link
               href="/orders"
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#121358]/15 px-5 py-3 text-sm font-bold text-[#121358] transition hover:border-[#F59E0B] hover:bg-[#F59E0B] hover:text-white"
@@ -752,13 +770,29 @@ export default function OrderDetailPage() {
               Back to All Orders
             </Link>
 
-            {canCancel ? (
-              <div className="flex flex-col gap-3 sm:items-end">
-                <p className="text-xs text-slate-500">
-                  You can cancel while the order
-                  is pending or confirmed.
-                </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <button
+                type="button"
+                onClick={() =>
+                  void handleDownloadInvoice()
+                }
+                disabled={downloadingInvoice}
+                className="inline-flex items-center justify-center gap-3 rounded-xl bg-[#121358] px-5 py-3 text-sm font-black text-white shadow-lg shadow-[#121358]/15 transition hover:-translate-y-0.5 hover:bg-[#292c82] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {downloadingInvoice ? (
+                  <>
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                    Preparing Invoice...
+                  </>
+                ) : (
+                  <>
+                    <FaDownload />
+                    Download Invoice
+                  </>
+                )}
+              </button>
 
+              {canCancel ? (
                 <button
                   type="button"
                   onClick={() =>
@@ -779,18 +813,25 @@ export default function OrderDetailPage() {
                     </>
                   )}
                 </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3 rounded-xl bg-[#f4f5ff] px-4 py-3">
-                <FaLock className="text-[#121358]" />
+              ) : (
+                <div className="flex items-center justify-center gap-3 rounded-xl bg-[#f4f5ff] px-4 py-3">
+                  <FaLock className="text-[#121358]" />
 
-                <p className="text-xs font-semibold text-slate-600">
-                  This order can no longer be
-                  cancelled.
-                </p>
-              </div>
-            )}
+                  <p className="text-xs font-semibold text-slate-600">
+                    This order can no longer be cancelled.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
+
+          {canCancel && (
+            <div className="border-t border-slate-100 bg-slate-50 px-5 py-3 text-right sm:px-6">
+              <p className="text-xs text-slate-500">
+                You can cancel while the order is pending or accepted.
+              </p>
+            </div>
+          )}
         </section>
 
         {/* Trust benefits */}
@@ -830,23 +871,27 @@ export default function OrderDetailPage() {
 
 const progressSteps = [
   {
-    label: "Placed",
+    label: "Pending",
+    description:
+      "Order received and waiting for acceptance.",
     icon: <FaReceipt />,
   },
   {
-    label: "Confirmed",
+    label: "Accepted",
+    description:
+      "The store accepted your order.",
     icon: <FaCheck />,
   },
   {
-    label: "Processing",
-    icon: <FaBox />,
-  },
-  {
     label: "Shipped",
+    description:
+      "Your order is on the way.",
     icon: <FaTruckFast />,
   },
   {
     label: "Delivered",
+    description:
+      "Your order has been delivered.",
     icon: <FaHouse />,
   },
 ];
@@ -864,21 +909,24 @@ function OrderProgress({
 
   if (cancelled) {
     return (
-      <section className="rounded-2xl border border-red-200 bg-red-50 p-5 shadow-sm">
+      <section className="rounded-2xl border border-red-200 bg-red-50 p-5 shadow-sm sm:p-6">
         <div className="flex items-start gap-4">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-600">
             <FaXmark />
           </span>
 
           <div>
-            <h2 className="font-black text-red-700">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-red-500">
+              Delivery progress
+            </p>
+
+            <h2 className="mt-1 font-black text-red-700">
               Order Cancelled
             </h2>
 
             <p className="mt-1 text-sm leading-6 text-red-600">
-              This order has been cancelled and
-              will not continue through the
-              delivery process.
+              This order has been cancelled and will
+              not continue through the delivery process.
             </p>
           </div>
         </div>
@@ -891,15 +939,19 @@ function OrderProgress({
 
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-      <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-7 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.18em] text-[#F59E0B]">
             Delivery progress
           </p>
 
           <h2 className="mt-1 text-xl font-black text-[#121358]">
-            Order Journey
+            Track Your Order
           </h2>
+
+          <p className="mt-1 text-xs leading-5 text-slate-500">
+            Follow your order from placement to delivery.
+          </p>
         </div>
 
         <Badge
@@ -912,24 +964,23 @@ function OrderProgress({
       </div>
 
       <div className="relative">
-        <div className="absolute left-[8%] right-[8%] top-6 hidden h-1 rounded-full bg-slate-100 sm:block" />
+        <div className="absolute left-[12.5%] right-[12.5%] top-6 hidden h-1 rounded-full bg-slate-100 md:block" />
 
         <div
-          className="absolute left-[8%] top-6 hidden h-1 rounded-full bg-gradient-to-r from-[#121358] to-[#F59E0B] transition-all sm:block"
+          className="absolute left-[12.5%] top-6 hidden h-1 rounded-full bg-gradient-to-r from-[#121358] to-[#F59E0B] transition-all duration-500 md:block"
           style={{
             width:
               activeIndex <= 0
                 ? "0%"
                 : `${
                     (activeIndex /
-                      (progressSteps.length -
-                        1)) *
-                    84
+                      (progressSteps.length - 1)) *
+                    75
                   }%`,
           }}
         />
 
-        <div className="relative grid gap-4 sm:grid-cols-5">
+        <div className="relative grid gap-3 md:grid-cols-4">
           {progressSteps.map(
             (step, index) => {
               const completed =
@@ -941,10 +992,10 @@ function OrderProgress({
               return (
                 <div
                   key={step.label}
-                  className={`flex items-center gap-3 rounded-xl p-3 sm:flex-col sm:bg-transparent sm:p-0 sm:text-center ${
+                  className={`flex items-start gap-4 rounded-xl border p-4 transition md:flex-col md:items-center md:border-0 md:bg-transparent md:p-0 md:text-center ${
                     current
-                      ? "bg-[#fffaf0]"
-                      : "bg-slate-50"
+                      ? "border-[#F59E0B]/30 bg-[#fffaf0]"
+                      : "border-slate-100 bg-slate-50 md:border-0 md:bg-transparent"
                   }`}
                 >
                   <span
@@ -957,22 +1008,34 @@ function OrderProgress({
                     {step.icon}
                   </span>
 
-                  <div>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 md:justify-center">
+                      <p
+                        className={`text-sm font-black ${
+                          completed
+                            ? "text-[#121358]"
+                            : "text-slate-400"
+                        }`}
+                      >
+                        {step.label}
+                      </p>
+
+                      {current && (
+                        <span className="rounded-full bg-[#F59E0B]/10 px-2 py-1 text-[9px] font-black uppercase tracking-wider text-[#F59E0B]">
+                          Current
+                        </span>
+                      )}
+                    </div>
+
                     <p
-                      className={`text-xs font-black ${
+                      className={`mt-1 text-xs leading-5 ${
                         completed
-                          ? "text-[#121358]"
+                          ? "text-slate-500"
                           : "text-slate-400"
                       }`}
                     >
-                      {step.label}
+                      {step.description}
                     </p>
-
-                    {current && (
-                      <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-[#F59E0B]">
-                        Current
-                      </p>
-                    )}
                   </div>
                 </div>
               );

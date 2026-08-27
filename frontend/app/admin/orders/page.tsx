@@ -1,122 +1,626 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Badge, { orderStatusVariant } from "@/components/ui/Badge";
+import {
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
+
+import Badge, {
+  orderStatusVariant,
+} from "@/components/ui/Badge";
 import Card from "@/components/ui/Card";
 import Select from "@/components/ui/Select";
 import { PageLoader } from "@/components/ui/Spinner";
-import { adminApi, formatPrice, formatOrderNumber } from "@/lib/api";
-import type { Order } from "@/types";
+
+import {
+  adminApi,
+  formatOrderNumber,
+  formatPrice,
+} from "@/lib/api";
+
+import type {
+  Order,
+  OrderStatus,
+} from "@/types";
 
 const statusOptions = [
-  { value: "", label: "All Statuses" },
-  { value: "pending", label: "Pending" },
-  { value: "confirmed", label: "Confirmed" },
-  { value: "shipped", label: "Shipped" },
-  { value: "delivered", label: "Delivered" },
-  { value: "cancelled", label: "Cancelled" },
+  {
+    value: "",
+    label: "All Statuses",
+  },
+  {
+    value: "pending",
+    label: "Pending",
+  },
+  {
+    value: "confirmed",
+    label: "Accepted",
+  },
+  {
+    value: "shipped",
+    label: "Shipped",
+  },
+  {
+    value: "delivered",
+    label: "Delivered",
+  },
+  {
+    value: "cancelled",
+    label: "Cancelled",
+  },
 ];
 
-const updateOptions = statusOptions.filter((o) => o.value);
+function getStatusLabel(
+  status: OrderStatus,
+): string {
+  switch (status) {
+    case "pending":
+      return "Pending";
 
-export default function AdminOrdersPage() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [filterStatus, setFilterStatus] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [updatingId, setUpdatingId] = useState<number | null>(null);
+    case "confirmed":
+      return "Accepted";
 
-  async function loadOrders() {
-    setLoading(true);
-    try {
-      const res = await adminApi.orders.list(1, filterStatus || undefined);
-      setOrders(res.data);
-    } finally {
-      setLoading(false);
+    case "shipped":
+      return "Shipped";
+
+    case "delivered":
+      return "Delivered";
+
+    case "cancelled":
+      return "Cancelled";
+
+    default:
+      return status;
+  }
+}
+
+function getDeliveryLabel(
+  order: Order,
+): string {
+  return order.delivery_method ===
+    "pickup"
+    ? "Store Pickup"
+    : "Home Delivery";
+}
+
+function getErrorMessage(
+  error: unknown,
+): string {
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error
+  ) {
+    const message = (
+      error as {
+        message?: unknown;
+      }
+    ).message;
+
+    if (
+      typeof message === "string"
+    ) {
+      return message;
     }
   }
 
-  useEffect(() => {
-    loadOrders();
-  }, [filterStatus]);
+  return "Something went wrong. Please try again.";
+}
 
-  async function handleStatusChange(orderId: number, status: string) {
-    setUpdatingId(orderId);
+export default function AdminOrdersPage() {
+  const [
+    orders,
+    setOrders,
+  ] = useState<Order[]>([]);
+
+  const [
+    filterStatus,
+    setFilterStatus,
+  ] = useState("");
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
+
+  const [
+    updatingId,
+    setUpdatingId,
+  ] = useState<number | null>(
+    null,
+  );
+
+  const [
+    error,
+    setError,
+  ] = useState("");
+
+  /*
+  |--------------------------------------------------------------------------
+  | Load Orders
+  |--------------------------------------------------------------------------
+  */
+
+  const loadOrders =
+    useCallback(async () => {
+      try {
+        setLoading(true);
+        setError("");
+
+        const response =
+          await adminApi.orders.list(
+            1,
+            filterStatus ||
+              undefined,
+          );
+
+        setOrders(
+          response.data ?? [],
+        );
+      } catch (error) {
+        console.error(
+          "Unable to load orders:",
+          error,
+        );
+
+        setError(
+          getErrorMessage(error),
+        );
+      } finally {
+        setLoading(false);
+      }
+    }, [filterStatus]);
+
+  useEffect(() => {
+    void loadOrders();
+  }, [loadOrders]);
+
+  /*
+  |--------------------------------------------------------------------------
+  | Update Status
+  |--------------------------------------------------------------------------
+  */
+
+  async function handleStatusChange(
+    order: Order,
+    status: OrderStatus,
+  ) {
+    /*
+     * Ask before cancelling.
+     */
+    if (
+      status === "cancelled"
+    ) {
+      const confirmed =
+        window.confirm(
+          `Cancel ${formatOrderNumber(
+            order,
+          )}?`,
+        );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
     try {
-      const updated = await adminApi.orders.updateStatus(orderId, status);
-      setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)));
+      setUpdatingId(order.id);
+      setError("");
+
+      const updated =
+        await adminApi.orders
+          .updateStatus(
+            order.id,
+            status,
+          );
+
+      setOrders((current) =>
+        current.map(
+          (currentOrder) =>
+            currentOrder.id ===
+            order.id
+              ? updated
+              : currentOrder,
+        ),
+      );
+    } catch (error) {
+      console.error(
+        "Unable to update order status:",
+        error,
+      );
+
+      setError(
+        getErrorMessage(error),
+      );
     } finally {
       setUpdatingId(null);
     }
   }
 
-  if (loading) return <PageLoader />;
+  /*
+  |--------------------------------------------------------------------------
+  | Loading
+  |--------------------------------------------------------------------------
+  */
+
+  if (loading) {
+    return <PageLoader />;
+  }
 
   return (
     <div>
+      {/* Page Header */}
+
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold sm:text-3xl">Orders</h1>
-          <p className="text-muted">Manage customer orders</p>
+          <h1 className="text-2xl font-bold text-[#121358] sm:text-3xl">
+            Orders
+          </h1>
+
+          <p className="mt-1 text-sm text-muted">
+            Manage customer orders
+            and delivery progress.
+          </p>
         </div>
+
         <Select
           value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
+          onChange={(event) =>
+            setFilterStatus(
+              event.target.value,
+            )
+          }
           options={statusOptions}
           className="w-full sm:w-48"
         />
       </div>
 
-      <Card className="mt-8 overflow-hidden" padding="none">
+      {/* Error */}
+
+      {error && (
+        <div className="mt-6 flex items-center justify-between gap-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+          <span>{error}</span>
+
+          <button
+            type="button"
+            onClick={() =>
+              setError("")
+            }
+            className="shrink-0 rounded-lg bg-red-100 px-3 py-1.5 text-xs font-bold hover:bg-red-200"
+          >
+            Close
+          </button>
+        </div>
+      )}
+
+      {/* Orders */}
+
+      <Card
+        className="mt-8 overflow-hidden"
+        padding="none"
+      >
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full min-w-[1050px] text-left text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 font-medium">Order</th>
-                <th className="px-4 py-3 font-medium">Date</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Total</th>
-                <th className="px-4 py-3 font-medium">Update Status</th>
+                <th className="px-4 py-3 font-medium">
+                  Order
+                </th>
+
+                <th className="px-4 py-3 font-medium">
+                  Date
+                </th>
+
+                <th className="px-4 py-3 font-medium">
+                  Status
+                </th>
+
+                <th className="px-4 py-3 font-medium">
+                  Delivery
+                </th>
+
+                <th className="px-4 py-3 font-medium">
+                  Delivery Charge
+                </th>
+
+                <th className="px-4 py-3 font-medium">
+                  Total
+                </th>
+
+                <th className="px-4 py-3 font-medium">
+                  Actions
+                </th>
               </tr>
             </thead>
+
             <tbody>
-              {orders.map((order) => (
-                <tr key={order.id} className="border-t border-border">
-                  <td className="px-4 py-3 font-medium">{formatOrderNumber(order)}</td>
-                  <td className="px-4 py-3 text-muted">
-                    {new Date(order.created_at).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge variant={orderStatusVariant(order.status)}>{order.status}</Badge>
-                  </td>
-                  <td className="px-4 py-3 font-semibold text-secondary">
-                    {formatPrice(order.total_amount)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <select
-                        defaultValue={order.status}
-                        disabled={updatingId === order.id}
-                        onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                        className="rounded-lg border border-border px-2 py-1 text-sm"
-                      >
-                        {updateOptions.map((opt) => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
-                      {updatingId === order.id && (
-                        <span className="text-xs text-muted">Saving...</span>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {orders.map(
+                (order) => {
+                  const updating =
+                    updatingId ===
+                    order.id;
+
+                  return (
+                    <tr
+                      key={order.id}
+                      className="border-t border-border align-middle"
+                    >
+                      {/* Order Number */}
+
+                      <td className="px-4 py-4">
+                        <p className="font-black text-[#121358]">
+                          {formatOrderNumber(
+                            order,
+                          )}
+                        </p>
+                      </td>
+
+                      {/* Date */}
+
+                      <td className="px-4 py-4 text-muted">
+                        {new Date(
+                          order.created_at,
+                        ).toLocaleDateString()}
+                      </td>
+
+                      {/* Status */}
+
+                      <td className="px-4 py-4">
+                        <Badge
+                          variant={orderStatusVariant(
+                            order.status,
+                          )}
+                        >
+                          {getStatusLabel(
+                            order.status,
+                          )}
+                        </Badge>
+                      </td>
+
+                      {/* Delivery Method */}
+
+                      <td className="px-4 py-4">
+                        <div>
+                          <p className="font-semibold text-[#121358]">
+                            {getDeliveryLabel(
+                              order,
+                            )}
+                          </p>
+
+                          {order.delivery_method ===
+                            "pickup" && (
+                            <p className="mt-1 text-xs text-emerald-600">
+                              No delivery charge
+                            </p>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Delivery Charge */}
+
+                      <td className="px-4 py-4">
+                        {Number(
+                          order.delivery_charge ??
+                            0,
+                        ) > 0 ? (
+                          <span className="font-semibold text-[#121358]">
+                            {formatPrice(
+                              Number(
+                                order.delivery_charge,
+                              ),
+                            )}
+                          </span>
+                        ) : (
+                          <span className="font-semibold text-emerald-600">
+                            Free
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Total */}
+
+                      <td className="px-4 py-4 font-black text-secondary">
+                        {formatPrice(
+                          Number(
+                            order.total_amount,
+                          ),
+                        )}
+                      </td>
+
+                      {/* Actions */}
+
+                      <td className="px-4 py-4">
+                        <OrderActions
+                          order={order}
+                          updating={
+                            updating
+                          }
+                          onStatusChange={
+                            handleStatusChange
+                          }
+                        />
+                      </td>
+                    </tr>
+                  );
+                },
+              )}
             </tbody>
           </table>
         </div>
+
         {orders.length === 0 && (
-          <p className="p-8 text-center text-muted">No orders found.</p>
+          <div className="p-10 text-center">
+            <p className="font-semibold text-[#121358]">
+              No orders found.
+            </p>
+
+            <p className="mt-1 text-sm text-muted">
+              Orders will appear here
+              when customers place them.
+            </p>
+          </div>
         )}
       </Card>
     </div>
+  );
+}
+
+/*
+|--------------------------------------------------------------------------
+| Order Action Buttons
+|--------------------------------------------------------------------------
+*/
+
+function OrderActions({
+  order,
+  updating,
+  onStatusChange,
+}: {
+  order: Order;
+
+  updating: boolean;
+
+  onStatusChange: (
+    order: Order,
+    status: OrderStatus,
+  ) => Promise<void>;
+}) {
+  if (updating) {
+    return (
+      <div className="flex items-center gap-2 text-xs font-semibold text-muted">
+        <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-[#121358]" />
+
+        Saving...
+      </div>
+    );
+  }
+
+  /*
+   * Pending
+   *
+   * Accept / Cancel
+   */
+  if (
+    order.status ===
+    "pending"
+  ) {
+    return (
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() =>
+            void onStatusChange(
+              order,
+              "confirmed",
+            )
+          }
+          className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-700"
+        >
+          Accept
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            void onStatusChange(
+              order,
+              "cancelled",
+            )
+          }
+          className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-100"
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  /*
+   * Accepted
+   *
+   * Ship / Cancel
+   */
+  if (
+    order.status ===
+    "confirmed"
+  ) {
+    return (
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() =>
+            void onStatusChange(
+              order,
+              "shipped",
+            )
+          }
+          className="rounded-lg bg-[#121358] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#292c82]"
+        >
+          Mark Shipped
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            void onStatusChange(
+              order,
+              "cancelled",
+            )
+          }
+          className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-100"
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  /*
+   * Shipped
+   *
+   * Deliver only.
+   */
+  if (
+    order.status ===
+    "shipped"
+  ) {
+    return (
+      <button
+        type="button"
+        onClick={() =>
+          void onStatusChange(
+            order,
+            "delivered",
+          )
+        }
+        className="rounded-lg bg-[#F59E0B] px-3 py-2 text-xs font-bold text-white transition hover:bg-orange-600"
+      >
+        Mark Delivered
+      </button>
+    );
+  }
+
+  /*
+   * Delivered
+   */
+  if (
+    order.status ===
+    "delivered"
+  ) {
+    return (
+      <span className="text-xs font-bold text-emerald-600">
+        Completed
+      </span>
+    );
+  }
+
+  /*
+   * Cancelled
+   */
+  return (
+    <span className="text-xs font-bold text-red-500">
+      Cancelled
+    </span>
   );
 }

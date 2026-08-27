@@ -33,7 +33,7 @@ class QuotationController extends Controller
     public function store(
         Request $request
     ): JsonResponse {
-        $user = $request->user();
+        $user = $request->user('sanctum');
         $guestToken =
             $this->getGuestToken($request);
 

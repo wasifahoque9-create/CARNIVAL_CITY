@@ -16,6 +16,7 @@ import {
   FaLocationDot,
   FaPhone,
   FaStore,
+  FaTruckFast,
   FaWhatsapp,
 } from "react-icons/fa6";
 
@@ -37,6 +38,7 @@ const INITIAL_FORM: BusinessSettingsPayload = {
   currency: "BDT",
   facebook_url: "",
   instagram_url: "",
+  delivery_charge: 0,
 };
 
 function getErrorMessage(
@@ -134,6 +136,11 @@ export default function BusinessSettingsPage() {
           instagram_url:
             settings.instagram_url ||
             "",
+
+          delivery_charge:
+            Number(
+              settings.delivery_charge ?? 0,
+            ),
         });
       } catch (error) {
         console.error(
@@ -212,6 +219,18 @@ export default function BusinessSettingsPage() {
       return;
     }
 
+    if (
+      !Number.isFinite(
+        Number(form.delivery_charge),
+      ) ||
+      Number(form.delivery_charge) < 0
+    ) {
+      setError(
+        "Delivery charge must be 0 or more.",
+      );
+      return;
+    }
+
     try {
       setSaving(true);
       setError("");
@@ -254,6 +273,11 @@ export default function BusinessSettingsPage() {
             instagram_url:
               form.instagram_url
                 ?.trim() || null,
+
+            delivery_charge:
+              Number(
+                form.delivery_charge,
+              ),
           },
         );
 
@@ -291,6 +315,11 @@ export default function BusinessSettingsPage() {
         instagram_url:
           response.data.instagram_url ||
           "",
+
+        delivery_charge:
+          Number(
+            response.data.delivery_charge ?? 0,
+          ),
       });
 
       setSuccess(
@@ -525,6 +554,43 @@ export default function BusinessSettingsPage() {
             </SettingsSection>
 
             <SettingsSection
+              icon={<FaTruckFast />}
+              title="Delivery Settings"
+              description="Set the charge used only for Home Delivery. Store Pickup will always use a delivery charge of 0."
+            >
+              <div className="grid gap-4 sm:grid-cols-2">
+                <SettingsNumberInput
+                  label="Home Delivery Charge"
+                  required
+                  value={form.delivery_charge}
+                  onChange={(value) =>
+                    updateField(
+                      "delivery_charge",
+                      value,
+                    )
+                  }
+                  placeholder="100"
+                  min={0}
+                  step={0.01}
+                />
+
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4">
+                  <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">
+                    Store Pickup
+                  </p>
+
+                  <p className="mt-2 text-lg font-black text-emerald-700">
+                    Delivery Charge: 0
+                  </p>
+
+                  <p className="mt-1 text-xs leading-5 text-emerald-700/70">
+                    Pickup orders will not receive a delivery charge.
+                  </p>
+                </div>
+              </div>
+            </SettingsSection>
+
+            <SettingsSection
               icon={<FaLocationDot />}
               title="Social Media"
               description="Optional social media links for your business."
@@ -612,6 +678,12 @@ export default function BusinessSettingsPage() {
                     form.business_phone ||
                     "Not set"
                   }
+                />
+
+                <PreviewRow
+                  icon={<FaTruckFast />}
+                  label="Home Delivery"
+                  value={`${form.delivery_charge} ${form.currency || "BDT"}`}
                 />
 
                 <PreviewRow
@@ -736,6 +808,55 @@ function SettingsInput({
         placeholder={placeholder}
         onChange={(event) =>
           onChange(event.target.value)
+        }
+        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#F59E0B] focus:bg-white focus:ring-4 focus:ring-[#F59E0B]/10"
+      />
+    </label>
+  );
+}
+
+type SettingsNumberInputProps = {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  placeholder?: string;
+  required?: boolean;
+  min?: number;
+  step?: number;
+};
+
+function SettingsNumberInput({
+  label,
+  value,
+  onChange,
+  placeholder,
+  required = false,
+  min = 0,
+  step = 1,
+}: SettingsNumberInputProps) {
+  return (
+    <label>
+      <span className="mb-2 block text-sm font-bold text-[#121358]">
+        {label}
+
+        {required && (
+          <span className="ml-1 text-red-500">
+            *
+          </span>
+        )}
+      </span>
+
+      <input
+        type="number"
+        value={value}
+        required={required}
+        min={min}
+        step={step}
+        placeholder={placeholder}
+        onChange={(event) =>
+          onChange(
+            Number(event.target.value),
+          )
         }
         className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#F59E0B] focus:bg-white focus:ring-4 focus:ring-[#F59E0B]/10"
       />
