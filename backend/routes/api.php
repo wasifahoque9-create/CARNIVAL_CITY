@@ -65,6 +65,7 @@ Route::middleware('auth:sanctum')
 |--------------------------------------------------------------------------
 */
 
+// Public banner routes.
 Route::get('/banners', [BannerController::class, 'index']);
 
 /*
@@ -255,7 +256,10 @@ Route::post('/reviews', [
 ])
     ->middleware('auth:sanctum');
 
-Route::get('/reviews/product/{product}', [ReviewController::class, 'forProduct']);
+Route::get('/reviews/product/{product}', [
+    ReviewController::class,
+    'forProduct',
+]);
 
 Route::middleware(['auth:sanctum', 'admin'])
     ->put('/reviews/{review}/moderate', [
@@ -275,10 +279,54 @@ Route::middleware([
 ])
     ->prefix('admin')
     ->group(function () {
-        Route::get('/dashboard', [AdminController::class, 'dashboard']);
-        Route::get('/reviews', [AdminController::class, 'reviews']);
+        Route::get('/dashboard', [
+            AdminController::class,
+            'dashboard',
+        ]);
+
+        Route::get('/reviews', [
+            AdminController::class,
+            'reviews',
+        ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Admin Banner Routes
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get('/banners', [
+            AdminBannerController::class,
+            'index',
+        ]);
+
+        Route::get('/banners/{banner}', [
+            AdminBannerController::class,
+            'show',
+        ]);
+
+        Route::post('/banners', [
+            AdminBannerController::class,
+            'store',
+        ]);
+
+        Route::put('/banners/{banner}', [
+            AdminBannerController::class,
+            'update',
+        ]);
+
+        Route::delete('/banners/{banner}', [
+            AdminBannerController::class,
+            'destroy',
+        ]);
     });
-   
+
+/*
+|--------------------------------------------------------------------------
+| Additional Admin Product Routes
+|--------------------------------------------------------------------------
+*/
+
 Route::middleware('auth:sanctum')
     ->prefix('admin')
     ->group(function () {

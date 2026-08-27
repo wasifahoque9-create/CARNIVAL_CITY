@@ -7,12 +7,13 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     public function up(): void
-    {
+{
+    if (!Schema::hasColumn('otps', 'phone')) {
         Schema::table('otps', function (Blueprint $table) {
-            $table->string('phone')->nullable()->index()->after('id');
-            $table->string('email')->nullable()->change(); // was required before, now optional
+            $table->string('phone')->nullable();
         });
     }
+}
 
     public function down(): void
     {
