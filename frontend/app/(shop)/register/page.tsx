@@ -32,6 +32,10 @@ export default function RegisterPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
+  // Password visibility toggles
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   // OTP / phone verification state
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
@@ -312,19 +316,28 @@ export default function RegisterPage() {
                 <label className="mb-3 block text-lg font-medium text-white">
                   Password
                 </label>
-                <Input
-                  type="password"
-                  required
-                  value={form.password}
-                  placeholder="Create a strong password"
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      password: e.target.value,
-                    })
-                  }
-                  error={fieldErrors.password}
-                />
+                <div className="relative">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={form.password}
+                    placeholder="Create a strong password"
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        password: e.target.value,
+                      })
+                    }
+                    error={fieldErrors.password}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((current) => !current)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-400 hover:text-white"
+                  >
+                    {showPassword ? "Hide" : "Show"}
+                  </button>
+                </div>
               </div>
 
               {/* Confirm Password */}
@@ -332,19 +345,28 @@ export default function RegisterPage() {
                 <label className="mb-3 block text-lg font-medium text-white">
                   Confirm Password
                 </label>
-                <Input
-                  type="password"
-                  required
-                  value={form.password_confirmation}
-                  placeholder="Confirm your password"
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      password_confirmation: e.target.value,
-                    })
-                  }
-                  error={fieldErrors.password_confirmation}
-                />
+                <div className="relative">
+                  <Input
+                    type={showConfirmPassword ? "text" : "password"}
+                    required
+                    value={form.password_confirmation}
+                    placeholder="Confirm your password"
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        password_confirmation: e.target.value,
+                      })
+                    }
+                    error={fieldErrors.password_confirmation}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((current) => !current)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-400 hover:text-white"
+                  >
+                    {showConfirmPassword ? "Hide" : "Show"}
+                  </button>
+                </div>
               </div>
 
               {error && (

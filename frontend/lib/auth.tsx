@@ -19,6 +19,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isAdmin: boolean;
   login: (email: string, password: string) => Promise<User>;
+  googleLogin: (idToken: string) => Promise<{ user: User; isNewUser: boolean }>;
   register: (data: {
     name: string;
     email: string;
@@ -71,6 +72,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const googleLogin = useCallback(async (idToken: string) => {
+    const response = await authApi.google({ id_token: idToken });
+    setToken(response.token);
+    setUser(response.user);
+    return {
+      user: response.user,
+      isNewUser: response.message?.toLowerCase().includes("registration") ?? false,
+    };
+  }, []);
+
   const register = useCallback(
     async (data: {
       name: string;
@@ -88,16 +99,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(async () => {
-  try {
-    await authApi.logout();
-  } catch {
-    // Ignore backend logout failure.
-  } finally {
-    setToken(null);
-    setUser(null);
-    router.replace("/login");
-  }
-}, [router]);
+    try {
+      await authApi.logout();
+    } catch {
+      // Ignore backend logout failure.
+    } finally {
+      setToken(null);
+      setUser(null);
+      router.replace("/login");
+    }
+  }, [router]);
+
   const value = useMemo(
     () => ({
       user,
@@ -105,11 +117,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated: !!user,
       isAdmin: user?.role === "admin",
       login,
+      googleLogin,
       register,
       logout,
       refreshUser,
     }),
-    [user, loading, login, register, logout, refreshUser],
+    [user, loading, login, googleLogin, register, logout, refreshUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
