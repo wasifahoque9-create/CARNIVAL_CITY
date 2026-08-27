@@ -1,6 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  Fragment,
+  useEffect,
+  useState,
+} from "react";
 import Badge, {
   orderStatusVariant,
 } from "@/components/ui/Badge";
@@ -156,13 +160,6 @@ export default function AdminOrdersPage() {
 
             <tbody>
               {orders.map((order) => {
-                /*
-                 * Registered customer:
-                 * use user + shipping address.
-                 *
-                 * Guest customer:
-                 * use guest_* fields.
-                 */
                 const customerName =
                   order.user?.name ??
                   order.guest_name ??
@@ -179,14 +176,12 @@ export default function AdminOrdersPage() {
                   "—";
 
                 const addressLine1 =
-                  order.shipping_address
-                    ?.address_line1 ??
+                  order.shipping_address?.line1 ??
                   order.guest_address_line1 ??
                   "—";
 
                 const addressLine2 =
-                  order.shipping_address
-                    ?.address_line2 ??
+                  order.shipping_address?.line2 ??
                   order.guest_address_line2 ??
                   "";
 
@@ -196,9 +191,7 @@ export default function AdminOrdersPage() {
                   "—";
 
                 const area =
-                  order.shipping_address?.area ??
-                  order.guest_area ??
-                  "";
+                  order.guest_area ?? "";
 
                 const postalCode =
                   order.shipping_address
@@ -216,12 +209,9 @@ export default function AdminOrdersPage() {
                   expandedId === order.id;
 
                 return (
-                  <>
+                  <Fragment key={order.id}>
                     {/* Main order row */}
-                    <tr
-                      key={order.id}
-                      className="border-t border-border align-top"
-                    >
+                    <tr className="border-t border-border align-top">
                       {/* Order */}
                       <td className="px-4 py-4 font-medium">
                         {formatOrderNumber(order)}
@@ -265,11 +255,13 @@ export default function AdminOrdersPage() {
                           {area || city}
                         </div>
 
-                        {area && city && (
-                          <div className="mt-1 text-xs text-muted">
-                            {city}
-                          </div>
-                        )}
+                        {area &&
+                          city &&
+                          city !== "—" && (
+                            <div className="mt-1 text-xs text-muted">
+                              {city}
+                            </div>
+                          )}
                       </td>
 
                       {/* Date */}
@@ -358,10 +350,7 @@ export default function AdminOrdersPage() {
 
                     {/* Expanded full information */}
                     {isExpanded && (
-                      <tr
-                        key={`${order.id}-details`}
-                        className="border-t border-border bg-gray-50/70"
-                      >
+                      <tr className="border-t border-border bg-gray-50/70">
                         <td
                           colSpan={8}
                           className="px-5 py-6"
@@ -547,10 +536,9 @@ export default function AdminOrdersPage() {
                                           </td>
 
                                           <td className="px-3 py-3 text-muted">
-                                            {item
-                                              .variant
-                                              ?.name ??
-                                              "—"}
+                                            {item.variant
+                                              ? `${item.variant.variant_name}: ${item.variant.variant_value}`
+                                              : "—"}
                                           </td>
 
                                           <td className="px-3 py-3">
@@ -601,7 +589,7 @@ export default function AdminOrdersPage() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
             </tbody>

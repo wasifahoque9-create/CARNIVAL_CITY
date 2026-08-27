@@ -7,9 +7,16 @@ export type OrderStatus =
   | "delivered"
   | "cancelled";
 
-export type PaymentStatus = "pending" | "paid" | "failed" | "refunded";
+export type PaymentStatus =
+  | "pending"
+  | "paid"
+  | "failed"
+  | "refunded";
 
-export type ReviewStatus = "pending" | "approved" | "hidden";
+export type ReviewStatus =
+  | "pending"
+  | "approved"
+  | "hidden";
 
 export type CategoryType =
   | "laptop"
@@ -67,7 +74,10 @@ export interface Product {
   effective_price?: number;
   stock_qty?: number;
   status?: string;
-  specifications?: Record<string, string | number | boolean> | null;
+  specifications?: Record<
+    string,
+    string | number | boolean
+  > | null;
   warranty_months?: number | null;
   sku?: string | null;
   average_rating?: number | null;
@@ -86,7 +96,10 @@ export interface Review {
   comment: string;
   status: ReviewStatus;
   user?: Pick<User, "id" | "name">;
-  product?: Pick<Product, "id" | "name" | "slug">;
+  product?: Pick<
+    Product,
+    "id" | "name" | "slug"
+  >;
   created_at: string;
 }
 
@@ -141,13 +154,37 @@ export interface Payment {
 
 export interface Order {
   id: number;
-  user_id?: number;
+
+  // Registered customer
+  user_id?: number | null;
+  user?: User | null;
+
   status: OrderStatus;
   total_amount: number;
-  shipping_address_id?: number;
-  shipping_address?: Address;
+
+  // Registered customer shipping address
+  shipping_address_id?: number | null;
+  shipping_address?: Address | null;
+
+  // Guest customer information
+  guest_name?: string | null;
+  guest_phone?: string | null;
+  guest_email?: string | null;
+
+  // Guest delivery information
+  guest_address_line1?: string | null;
+  guest_address_line2?: string | null;
+  guest_city?: string | null;
+  guest_area?: string | null;
+  guest_postal_code?: string | null;
+  guest_notes?: string | null;
+
+  // Guest or registered
+  customer_type?: "guest" | "registered";
+
   items?: OrderItem[];
-  payment?: Payment;
+  payment?: Payment | null;
+
   created_at: string;
   updated_at?: string;
 }
