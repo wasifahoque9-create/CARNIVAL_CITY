@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BannerController;
 use App\Http\Controllers\Api\BusinessSettingController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CategoryController;
@@ -357,3 +358,5 @@ Route::middleware([
             'reviews',
         ]);
     });
+
+Route::get('/banners', [BannerController::class, 'index']);

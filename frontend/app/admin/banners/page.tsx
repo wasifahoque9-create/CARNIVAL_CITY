@@ -6,26 +6,7 @@ import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import Card, { CardHeader } from "@/components/ui/Card";
 import { PageLoader } from "@/components/ui/Spinner";
 import { adminApi, getBannerImage } from "@/lib/api";
-type Banner = {
-  id: number;
-  tag?: string | null;
-  title: string;
-  highlight?: string | null;
-  description?: string | null;
-  price?: number | string | null;
-  discount_text?: string | null;
-  cta_text?: string | null;
-  cta_link?: string | null;
-  secondary_cta_text?: string | null;
-  secondary_cta_link?: string | null;
-  fallback_emoji?: string | null;
-  sort_order?: number | null;
-  is_active: boolean;
-  image_path?: string | null;
-  image?: string | null;
-  image_url?: string | null;
-};
-
+import type { Banner } from "@/types";
 const inputClass =
   "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#121358] focus:outline-none focus:ring-1 focus:ring-[#121358]";
 

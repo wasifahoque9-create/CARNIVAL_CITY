@@ -2,6 +2,7 @@ import type {
   Address,
   ApiMessage,
   AuthResponse,
+  Banner,
   Cart,
   Category,
   PaginationMeta,
@@ -428,6 +429,16 @@ export const authApi = {
   }) =>
     api<AuthResponse>(
       "/auth/login",
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+    ),
+    google: (data: {
+    id_token: string;
+  }) =>
+    api<AuthResponse>(
+      "/auth/google",
       {
         method: "POST",
         body: JSON.stringify(data),
@@ -971,6 +982,27 @@ export const quotationApi = {
 */
 
 export const adminApi = {
+    banners: {
+    list: () =>
+      api<Banner[]>("/banners"),
+
+    create: (data: FormData) =>
+      api<Banner>("/admin/banners", {
+        method: "POST",
+        body: data,
+      }),
+
+    update: (id: number, data: FormData) =>
+      api<Banner>(`/admin/banners/${id}`, {
+        method: "POST",
+        body: data,
+      }),
+
+    delete: (id: number) =>
+      api<void>(`/admin/banners/${id}`, {
+        method: "DELETE",
+      }),
+  },
   dashboard: () =>
     api<DashboardStats>(
       "/admin/dashboard",
@@ -1306,3 +1338,41 @@ export const businessSettingsApi = {
       body: JSON.stringify(data),
     }),
 };
+
+export const bannerApi = {
+  getActive: () =>
+    api<{
+      data: Array<{
+        id: number | string;
+        tag?: string | null;
+        title: string;
+        highlight?: string | null;
+        description?: string | null;
+        price?: number | string | null;
+        discount_text?: string | null;
+        fallback_emoji?: string | null;
+        cta_link?: string | null;
+        cta_text?: string | null;
+        secondary_cta_link?: string | null;
+        secondary_cta_text?: string | null;
+        image_path?: string | null;
+      }>;
+    }>("/banners").then((response) => response.data),
+};
+
+export function getBannerImage(
+  banner: { image_path?: string | null },
+): string | null {
+  if (!banner.image_path) {
+    return null;
+  }
+
+  if (
+    banner.image_path.startsWith("http://") ||
+    banner.image_path.startsWith("https://")
+  ) {
+    return banner.image_path;
+  }
+
+  return `${STORAGE_BASE}/${banner.image_path.replace(/^\/+/, "")}`;
+}

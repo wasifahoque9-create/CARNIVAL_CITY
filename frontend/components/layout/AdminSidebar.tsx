@@ -16,6 +16,11 @@ const navItems = [
     icon: "📦",
   },
   {
+href: "/admin/banners",
+label: "Banners",
+icon: "🖼️",
+},
+  {
     href: "/admin/categories",
     label: "Categories",
     icon: "🏷️",

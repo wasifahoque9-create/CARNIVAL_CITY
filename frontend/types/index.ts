@@ -284,6 +284,14 @@ export interface Order {
    * Logged-in customer
    */
   user_id?: number | null;
+customer_type?: string | null;
+  user?: {
+  id: number;
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+} | null;
+guest_area?: string | null;
 
   /*
    * Order state
@@ -310,6 +318,7 @@ export interface Order {
 
   guest_email?: string | null;
 
+  guest_notes?: string | null;
   guest_phone?: string | null;
 
   guest_address_line1?:
@@ -491,4 +500,23 @@ export interface ReviewsResponse {
   average_rating?: number;
 
   meta?: PaginationMeta;
+}
+export interface Banner {
+  id: number;
+  tag?: string | null;
+  title: string;
+  highlight?: string | null;
+  description?: string | null;
+  price?: number | string | null;
+  discount_text?: string | null;
+  cta_text?: string | null;
+  cta_link?: string | null;
+  secondary_cta_text?: string | null;
+  secondary_cta_link?: string | null;
+  fallback_emoji?: string | null;
+  sort_order?: number | null;
+  is_active: boolean;
+  image_path?: string | null;
+  image?: string | null;
+  image_url?: string | null;
 }
