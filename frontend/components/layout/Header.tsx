@@ -33,30 +33,25 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-50">
       {/* Decorative top line */}
-      <div className="h-1 bg-gradient-to-r from-secondary via-white to-secondary" />
-
+<div className="h-0.5 bg-secondary" />
       <div className="border-b border-white/10 bg-gradient-to-r from-primary via-primary to-primary-light text-white shadow-xl">
-        <div className="mx-auto flex min-h-20 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-          {/* Logo */}
-          <Link
-            href="/"
-            onClick={() => setMenuOpen(false)}
-            className="group flex shrink-0 items-center gap-3"
-          >
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-secondary text-xl font-black text-white shadow-lg transition-transform duration-300 group-hover:-rotate-6 group-hover:scale-105">
-              S
-            </div>
+<div className="flex h-16 w-full items-center justify-between gap-4 px-4"> 
+    {/* Logo + Brand Name */}
+<Link
+  href="/"
+  onClick={() => setMenuOpen(false)}
+  className="flex shrink-0 items-center gap-2"
+>
+  <img
+    src="/CCBM Logo.png"
+    alt="Carnival City Logo"
+    className="h-12 w-auto object-contain"
+  />
 
-            <div className="leading-tight">
-              <div className="text-xl font-black tracking-tight sm:text-2xl">
-                Shop
-                <span className="text-secondary">Sphere</span>
-              </div>
-              <p className="hidden text-[10px] font-medium uppercase tracking-[0.24em] text-white/65 sm:block">
-                Smart shopping
-              </p>
-            </div>
-          </Link>
+  <span className="text-xl font-bold text-white whitespace-nowrap">
+    Carnival City
+  </span>
+</Link>
 
           {/* Desktop search */}
           <form

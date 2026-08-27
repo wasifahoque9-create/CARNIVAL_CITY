@@ -19,7 +19,8 @@ export const metadata: Metadata = {
     default: "ShopSphere — Gadgets & Electronics",
     template: "%s | ShopSphere",
   },
-  description: "Shop the latest laptops, phones, earbuds, and tech accessories at ShopSphere.",
+  description:
+    "Shop the latest laptops, phones, earbuds, and tech accessories at ShopSphere.",
 };
 
 export default function RootLayout({
@@ -33,7 +34,9 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-white">
-        <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!}>
+        <GoogleOAuthProvider
+          clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!}
+        >
           <AuthProvider>{children}</AuthProvider>
         </GoogleOAuthProvider>
       </body>

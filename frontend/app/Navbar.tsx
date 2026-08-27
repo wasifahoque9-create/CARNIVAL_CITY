@@ -24,17 +24,19 @@ export default function Navbar() {
   return (
     <header className="fixed top-0 left-0 w-full z-50 bg-white border-b shadow-sm">
 
-      <div className="flex items-center gap-3 px-4 h-16">
+<div className="flex items-center gap-3 px-4 h-20">
 
-
-        {/* LOGO */}
-        <Link
-          href="/"
-          className="text-xl font-bold text-[#121358] whitespace-nowrap"
-        >
-          Shop<span className="text-secondary">Sphere</span>
-        </Link>
-
+ {/* LOGO */}
+<Link
+  href="/"
+  className="flex items-center shrink-0 h-20 w-[140px]"
+>
+  <img
+    src="/CCBM Logo.png"
+    alt="CCBM Logo"
+    className="w-full h-full object-contain"
+  />
+</Link>
 
 
         {/* DESKTOP MENU */}
