@@ -43,6 +43,7 @@ export interface ProductImage {
   id: number;
   image_path?: string;
   url?: string;
+  thumbnail_url?: string;
   is_primary: boolean;
 }
 

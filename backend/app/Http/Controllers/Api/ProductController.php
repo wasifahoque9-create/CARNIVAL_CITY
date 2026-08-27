@@ -178,10 +178,48 @@ class ProductController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Minimum price filter
+        | Price range
         |--------------------------------------------------------------------------
         */
 
+        if ($request->filled('min_price')) {
+            $query->where(
+                'price',
+                '>=',
+                (float) $request->query('min_price'),
+            );
+        }
+
+        if ($request->filled('max_price')) {
+            $query->where(
+                'price',
+                '<=',
+                (float) $request->query('max_price'),
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Brand
+        |--------------------------------------------------------------------------
+        */
+
+        $brand = trim(
+            (string) $request->query('brand', ''),
+        );
+
+        if ($brand !== '') {
+            $query->where(
+                'brand',
+                $brand,
+            );
+                }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Minimum price filter
+        |--------------------------------------------------------------------------
+        */
         $minPrice = $request->query('min_price');
 
         if (
@@ -357,8 +395,7 @@ class ProductController extends Controller
         'data' => ProductResource::collection(
             $products,
         ),
-
-        'meta' => [
+                'meta' => [
             'current_page' =>
                 $products->currentPage(),
 
@@ -374,41 +411,40 @@ class ProductController extends Controller
     ]);
 }
 
-    public function show(
-        Product $product,
-    ): JsonResponse {
-        $product->load([
-            'category',
-            'categories',
-            'images',
-            'variants',
-            'approvedReviews',
-        ]);
+public function show(
+    Product $product,
+): JsonResponse {
+    $product->load([
+        'category',
+        'categories',
+        'images',
+        'variants',
+        'approvedReviews',
+    ]);
 
-        $product->loadCount(
-            'approvedReviews',
-        );
+    $product->loadCount(
+        'approvedReviews',
+    );
 
-        return response()->json([
-            'data' => new ProductResource(
-                $product,
-            ),
-        ]);
-    }
+    return response()->json([
+        'data' => new ProductResource(
+            $product,
+        ),
+    ]);
+}
 
-    /*
-
-    
-    |--------------------------------------------------------------------------
-    | Create product
-    |--------------------------------------------------------------------------
-    */
+/*
+|--------------------------------------------------------------------------
+| Create product
+|--------------------------------------------------------------------------
+*/
 public function store(
     StoreProductRequest $request,
 ): JsonResponse {
     $data = $request->validated();
 
     $storedImagePaths = [];
+    $storedThumbnailPaths = [];
 
     DB::beginTransaction();
 
@@ -469,12 +505,19 @@ public function store(
         foreach (
             $uploadedImages as $index => $image
         ) {
-            $imagePath = $this->uploadProductImage($image);
+            $uploaded = $this->uploadProductImage($image);
+
+            $imagePath = $uploaded['image_path'];
+            $thumbnailPath = $uploaded['thumbnail_path'];
 
             $storedImagePaths[] = $imagePath;
+            if ($thumbnailPath) {
+                $storedThumbnailPaths[] = $thumbnailPath;
+            }
 
             $product->images()->create([
                 'image_path' => $imagePath,
+                'thumbnail_path' => $thumbnailPath,
                 'alt_text' => $product->name,
                 'is_primary' => $index === 0,
                 'sort_order' => $index,
@@ -527,181 +570,189 @@ public function store(
                                 'url' =>
                                     $productImage->url,
 
-                                'alt_text' =>
-                                    $productImage
-                                        ->alt_text,
+                                'thumbnail_url' =>
+                                    $productImage->thumbnail_url,
+                                                                     'alt_text' =>
+                                     $productImage
+                                         ->alt_text,
 
-                                'is_primary' =>
-                                    $productImage
-                                        ->is_primary,
+                                 'is_primary' =>
+                                     $productImage
+                                         ->is_primary,
 
-                                'sort_order' =>
-                                    $productImage
-                                        ->sort_order,
-                            ];
-                        },
-                    ),
-            ],
-        ], 201);
-    } catch (Throwable $exception) {
-        DB::rollBack();
+                                 'sort_order' =>
+                                     $productImage
+                                         ->sort_order,
+                             ];
+                         },
+                     ),
+             ],
+         ], 201);
+     } catch (Throwable $exception) {
+         DB::rollBack();
 
-        foreach ($storedImagePaths as $imagePath) {
-            Storage::disk('public')->delete(
-                $imagePath,
-            );
-        }
+         foreach ($storedImagePaths as $imagePath) {
+             if (! preg_match('/^https?:\/\//i', $imagePath)) {
+                 Storage::disk('public')->delete($imagePath);
+             }
+         }
 
-        report($exception);
+         foreach ($storedThumbnailPaths as $thumbnailPath) {
+             if (! preg_match('/^https?:\/\//i', $thumbnailPath)) {
+                 Storage::disk('public')->delete($thumbnailPath);
+             }
+         }
 
-        return response()->json([
-            'message' =>
-                'Product could not be created.',
+         report($exception);
 
-            'error' => config('app.debug')
-                ? $exception->getMessage()
-                : null,
-        ], 500);
-    }
-}
+         return response()->json([
+             'message' =>
+                 'Product could not be created.',
 
-    /*
-    |--------------------------------------------------------------------------
-    | Update product
-    |--------------------------------------------------------------------------
-    */
+             'error' => config('app.debug')
+                 ? $exception->getMessage()
+                 : null,
+         ], 500);
+     }
+ }
 
-    public function update(
-        UpdateProductRequest $request,
-        Product $product,
-    ): JsonResponse {
-        $data = $request->validated();
+     /*
+     |--------------------------------------------------------------------------
+     | Update product
+     |--------------------------------------------------------------------------
+     */
 
-        /*
-         * Remove relationship fields before updating
-         * the products table.
-         */
+     public function update(
+         UpdateProductRequest $request,
+         Product $product,
+     ): JsonResponse {
+         $data = $request->validated();
 
-        $product->update(
-            collect($data)
-                ->except([
-                    'category_ids',
-                    'images',
-                    'variants',
-                ])
-                ->toArray(),
-        );
+         /*
+          * Remove relationship fields before updating
+          * the products table.
+          */
 
-        /*
-         * Only update category relations when
-         * category_ids were included in the request.
-         */
+         $product->update(
+             collect($data)
+                 ->except([
+                     'category_ids',
+                     'images',
+                     'variants',
+                 ])
+                 ->toArray(),
+         );
 
-        if (
-            array_key_exists(
-                'category_ids',
-                $data,
-            )
-        ) {
-            $this->syncCategories(
-                $product,
-                $data,
-            );
-        }
+         /*
+          * Only update category relations when
+          * category_ids were included in the request.
+          */
 
-        $product->load([
-            'category',
-            'categories',
-            'images',
-            'variants',
-            'approvedReviews',
-        ]);
+         if (
+             array_key_exists(
+                 'category_ids',
+                 $data,
+             )
+         ) {
+             $this->syncCategories(
+                 $product,
+                 $data,
+             );
+         }
 
-        $product->loadCount(
-            'approvedReviews',
-        );
+         $product->load([
+             'category',
+             'categories',
+             'images',
+             'variants',
+             'approvedReviews',
+         ]);
 
-        return response()->json([
-            'message' =>
-                'Product updated successfully.',
+         $product->loadCount(
+             'approvedReviews',
+         );
 
-            'data' =>
-                new ProductResource($product),
-        ]);
-    }
+         return response()->json([
+             'message' =>
+                 'Product updated successfully.',
 
-    /*
-    |--------------------------------------------------------------------------
-    | Archive product
-    |--------------------------------------------------------------------------
-    */
+             'data' =>
+                 new ProductResource($product),
+         ]);
+     }
 
-    public function destroy(
-        Product $product,
-    ): JsonResponse {
-        $product->update([
-            'status' =>
-                ProductStatus::Archived->value,
-        ]);
+     /*
+     |--------------------------------------------------------------------------
+     | Archive product
+     |--------------------------------------------------------------------------
+     */
 
-        return response()->json([
-            'message' =>
-                'Product archived successfully.',
-        ]);
-    }
+     public function destroy(
+         Product $product,
+     ): JsonResponse {
+         $product->update([
+             'status' =>
+                 ProductStatus::Archived->value,
+         ]);
 
-    /*
-    |--------------------------------------------------------------------------
-    | Synchronize product categories
-    |--------------------------------------------------------------------------
-    */
+         return response()->json([
+             'message' =>
+                 'Product archived successfully.',
+         ]);
+     }
 
-    private function syncCategories(
-        Product $product,
-        array $data,
-    ): void {
-        $categoryIds =
-            $data['category_ids'] ?? [];
+     /*
+     |--------------------------------------------------------------------------
+     | Synchronize product categories
+     |--------------------------------------------------------------------------
+     */
 
-        /*
-         * Add the primary category to the
-         * category_product pivot table.
-         */
+     private function syncCategories(
+         Product $product,
+         array $data,
+     ): void {
+         $categoryIds =
+             $data['category_ids'] ?? [];
 
-        if (! empty($data['category_id'])) {
-            $categoryIds[] =
-                (int) $data['category_id'];
-        } elseif ($product->category_id) {
-            $categoryIds[] =
-                (int) $product->category_id;
-        }
+         /*
+          * Add the primary category to the
+          * category_product pivot table.
+          */
 
-        /*
-         * Remove empty and duplicate IDs.
-         */
+         if (! empty($data['category_id'])) {
+             $categoryIds[] =
+                 (int) $data['category_id'];
+         } elseif ($product->category_id) {
+             $categoryIds[] =
+                 (int) $product->category_id;
+         }
 
-        $categoryIds = array_values(
-            array_unique(
-                array_filter(
-                    array_map(
-                        'intval',
-                        $categoryIds,
-                    ),
-                ),
-            ),
-        );
+         /*
+          * Remove empty and duplicate IDs.
+          */
 
-        $product
-            ->categories()
-            ->sync($categoryIds);
-    }
-    private function buildProductImageUrl(?string $imagePath): string
-    {
-        if (! $imagePath) {
-            return '';
-        }
+         $categoryIds = array_values(
+             array_unique(
+                 array_filter(
+                     array_map(
+                         'intval',
+                         $categoryIds,
+                     ),
+                 ),
+             ),
+         );
 
-        $imagePath = trim($imagePath);
+         $product
+             ->categories()
+             ->sync($categoryIds);
+     }
+
+     private function buildProductImageUrl(?string $imagePath): string
+     {
+         if (! $imagePath) {
+             return '';
+         }
+                 $imagePath = trim($imagePath);
 
         if (preg_match('/^https?:\/\//i', $imagePath)) {
             return $imagePath;
@@ -710,27 +761,123 @@ public function store(
         return rtrim(config('app.url'), '/') . '/storage/' . ltrim($imagePath, '/');
     }
 
-    private function uploadProductImage($image): string
-    {
-        $cloudinaryUrl = env('CLOUDINARY_URL');
+    /**
+     * Store the original product image and generate a smaller thumbnail.
+     *
+     * The thumbnail is a maximum 500x500 image that keeps the original
+     * aspect ratio. It is stored separately so product cards can load the
+     * smaller file without replacing the high-quality product image.
+     *
+     * @return array{image_path: string, thumbnail_path: string|null}
+     */
+private function uploadProductImage($image): array
+{
+    $cloudinaryUrl = env('CLOUDINARY_URL');
 
-        if (! $cloudinaryUrl) {
-            return $image->store('products', 'public');
-        }
-
+    if ($cloudinaryUrl) {
         $cloudinary = new Cloudinary($cloudinaryUrl);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Upload original image + generate JPG thumbnail
+        |--------------------------------------------------------------------------
+        |
+        | The original image keeps its original format.
+        |
+        | Cloudinary also creates a 500x500 JPG thumbnail.
+        |
+        | crop = fill:
+        | - output is exactly 500x500
+        | - keeps the image aspect ratio
+        | - crops the excess area instead of stretching
+        |
+        */
 
         $uploadedFile = $cloudinary->uploadApi()->upload(
             $image->getRealPath(),
             [
                 'folder' => 'shopsphere/products',
                 'resource_type' => 'image',
+
+                'eager' => [
+                    [
+                        'width' => 500,
+                        'height' => 500,
+                        'crop' => 'fill',
+                        'gravity' => 'auto',
+                        'format' => 'jpg',
+                    ],
+                ],
             ]
         );
 
-        return $uploadedFile['secure_url'];
+        /*
+        |--------------------------------------------------------------------------
+        | Get the generated thumbnail URL
+        |--------------------------------------------------------------------------
+        */
+
+        $thumbnailPath = null;
+
+        if (
+            isset($uploadedFile['eager']) &&
+            ! empty($uploadedFile['eager'][0]['secure_url'])
+        ) {
+            $thumbnailPath =
+                $uploadedFile['eager'][0]['secure_url'];
+        }
+
+        return [
+            'image_path' =>
+                $uploadedFile['secure_url'],
+
+            'thumbnail_path' =>
+                $thumbnailPath,
+        ];
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Local storage fallback
+    |--------------------------------------------------------------------------
+    |
+    | Cloudinary is required for automatic thumbnail generation
+    | without PHP GD.
+    |
+    */
+
+    $imagePath = $image->store(
+        'products',
+        'public'
+    );
+
+    return [
+        'image_path' => $imagePath,
+        'thumbnail_path' => null,
+    ];
+}
+   /**
+ * Create a JPG thumbnail from the uploaded product image.
+ *
+ * Supported input formats:
+ * - JPG / JPEG
+ * - PNG
+ * - WEBP
+ * - GIF
+ *
+ * Output:
+ * - JPG
+ * - Maximum 500x500 pixels
+ * - Original aspect ratio preserved
+ * - JPEG quality 85
+ */
+/**
+ * Create a JPG thumbnail from the uploaded product image.
+ *
+ * Maximum size: 500x500
+ * Original aspect ratio is preserved.
+ * Output format: JPG
+ */
 
     /*
     |--------------------------------------------------------------------------
