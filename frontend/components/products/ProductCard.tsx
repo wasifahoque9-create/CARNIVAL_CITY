@@ -1,11 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState, type MouseEvent } from "react";
 
 import { cartApi, formatPrice, STORAGE_BASE } from "@/lib/api";
-import { useAuth } from "@/lib/auth";
 import { useCart } from "@/lib/cart";
 import type { Product } from "@/types";
 
@@ -117,18 +115,18 @@ function RatingStars({ rating }: { rating: number }) {
     </span>
   );
 }
+
 export default function ProductCard({
   product,
 }: {
   product: Product;
 }) {
-  const router = useRouter();
-  const { isAuthenticated } = useAuth();
   const { refreshCart } = useCart();
 
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
+  const [cartError, setCartError] = useState("");
 
   const regularPrice = Number(product.price);
 
@@ -139,9 +137,7 @@ export default function ProductCard({
   );
 
   const discountPercentage = getDiscountPercentage(product);
-
   const rating = Number(product.average_rating ?? 0);
-  const reviewCount = Number(product.review_count ?? 0);
 
   const productImageUrl = imageFailed
     ? "/placeholder-product.svg"
@@ -164,31 +160,26 @@ export default function ProductCard({
     event.preventDefault();
     event.stopPropagation();
 
-    if (!isAuthenticated) {
-      const redirect =
-        typeof window !== "undefined"
-          ? window.location.pathname
-          : "/";
-
-      router.push(
-        `/login?redirect=${encodeURIComponent(redirect)}`,
-      );
-
+    if (outOfStock || adding) {
       return;
     }
 
     try {
       setAdding(true);
       setAdded(false);
+      setCartError("");
 
       await cartApi.addItem({
         product_id: product.id,
-        product_variant_id:
-          selectedVariant?.id ?? null,
+        product_variant_id: selectedVariant?.id ?? null,
         quantity: 1,
       });
 
       await refreshCart();
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("cart-updated"));
+      }
 
       setAdded(true);
 
@@ -196,9 +187,12 @@ export default function ProductCard({
         setAdded(false);
       }, 1500);
     } catch (error) {
-      console.error(
-        "Unable to add product to cart:",
-        error,
+      console.error("Unable to add product to cart:", error);
+
+      setCartError(
+        error instanceof Error
+          ? error.message
+          : "Unable to add this product to cart.",
       );
     } finally {
       setAdding(false);
@@ -259,6 +253,12 @@ export default function ProductCard({
           </span>
         </div>
 
+        {cartError && (
+          <p className="mt-3 text-center text-xs font-semibold text-red-600">
+            {cartError}
+          </p>
+        )}
+
         <button
           type="button"
           onClick={handleAddToCart}
@@ -277,4 +277,3 @@ export default function ProductCard({
     </article>
   );
 }
-

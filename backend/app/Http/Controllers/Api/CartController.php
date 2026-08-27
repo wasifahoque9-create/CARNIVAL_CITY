@@ -13,72 +13,257 @@ use Illuminate\Http\Request;
 
 class CartController extends Controller
 {
-    public function __construct(private CartService $cartService) {}
+    public function __construct(
+        private CartService $cartService
+    ) {}
 
-    public function index(Request $request): JsonResponse
-    {
-        $summary = $this->cartService->getCartSummary($request->user());
+    /**
+     * Get guest token from request header.
+     */
+    private function getGuestToken(
+        Request $request
+    ): ?string {
+        $token = $request->header(
+            'X-Guest-Cart-Token'
+        );
+
+        return $token
+            ? trim((string) $token)
+            : null;
+    }
+
+    /**
+     * Get cart summary.
+     */
+    public function index(
+        Request $request
+    ): JsonResponse {
+        $guestToken =
+            $this->getGuestToken($request);
+
+        $summary =
+            $this->cartService
+                ->getCartSummary(
+                    $request->user(),
+                    $guestToken
+                );
 
         return response()->json([
-            'cart' => new CartResource($summary['cart']),
-            'subtotal' => $summary['subtotal'],
-            'discount_total' => $summary['discount_total'],
-            'total' => $summary['total'],
-            'item_count' => $summary['item_count'],
+            'cart' =>
+                new CartResource(
+                    $summary['cart']
+                ),
+
+            'subtotal' =>
+                $summary['subtotal'],
+
+            'discount_total' =>
+                $summary['discount_total'],
+
+            'total' =>
+                $summary['total'],
+
+            'item_count' =>
+                $summary['item_count'],
         ]);
     }
 
-    public function add(AddToCartRequest $request): JsonResponse
-    {
-        $cart = $this->cartService->addItem(
-            $request->user(),
-            $request->integer('product_id'),
-            $request->input('product_variant_id'),
-            $request->integer('quantity'),
-        );
+    /**
+     * Add item to cart.
+     */
+    public function add(
+        AddToCartRequest $request
+    ): JsonResponse {
+        $guestToken =
+            $this->getGuestToken($request);
 
-        $summary = $this->cartService->getCartSummary($request->user());
+        $cart =
+            $this->cartService->addItem(
+                $request->user(),
+                $guestToken,
+                $request->integer(
+                    'product_id'
+                ),
+
+                $request->filled(
+                    'product_variant_id'
+                )
+                    ? $request->integer(
+                        'product_variant_id'
+                    )
+                    : null,
+
+                $request->integer(
+                    'quantity'
+                )
+            );
+
+        $summary =
+            $this->cartService
+                ->getCartSummary(
+                    $request->user(),
+                    $guestToken
+                );
 
         return response()->json([
-            'message' => 'Item added to cart.',
-            'cart' => new CartResource($cart),
-            'subtotal' => $summary['subtotal'],
-            'total' => $summary['total'],
+            'message' =>
+                'Item added to cart.',
+
+            'cart' =>
+                new CartResource($cart),
+
+            'subtotal' =>
+                $summary['subtotal'],
+
+            'discount_total' =>
+                $summary['discount_total'],
+
+            'total' =>
+                $summary['total'],
+
+            'item_count' =>
+                $summary['item_count'],
         ]);
     }
 
-    public function update(UpdateCartRequest $request): JsonResponse
-    {
-        $cart = $this->cartService->updateItem(
-            $request->user(),
-            $request->integer('cart_item_id'),
-            $request->integer('quantity'),
-        );
+    /**
+     * Update cart item quantity.
+     */
+    public function update(
+        UpdateCartRequest $request
+    ): JsonResponse {
+        $guestToken =
+            $this->getGuestToken($request);
 
-        $summary = $this->cartService->getCartSummary($request->user());
+        $cart =
+            $this->cartService
+                ->updateItem(
+                    $request->user(),
+                    $guestToken,
+                    $request->integer(
+                        'cart_item_id'
+                    ),
+                    $request->integer(
+                        'quantity'
+                    )
+                );
+
+        $summary =
+            $this->cartService
+                ->getCartSummary(
+                    $request->user(),
+                    $guestToken
+                );
 
         return response()->json([
-            'message' => 'Cart updated.',
-            'cart' => new CartResource($cart),
-            'subtotal' => $summary['subtotal'],
-            'total' => $summary['total'],
+            'message' =>
+                'Cart updated.',
+
+            'cart' =>
+                new CartResource($cart),
+
+            'subtotal' =>
+                $summary['subtotal'],
+
+            'discount_total' =>
+                $summary['discount_total'],
+
+            'total' =>
+                $summary['total'],
+
+            'item_count' =>
+                $summary['item_count'],
         ]);
     }
 
-    public function remove(RemoveFromCartRequest $request): JsonResponse
-    {
-        $cart = $this->cartService->removeItem(
-            $request->user(),
-            $request->integer('cart_item_id'),
-        );
+    /**
+     * Remove one item from cart.
+     */
+    public function remove(
+        RemoveFromCartRequest $request
+    ): JsonResponse {
+        $guestToken =
+            $this->getGuestToken($request);
 
-        $summary = $this->cartService->getCartSummary($request->user());
+        $cart =
+            $this->cartService
+                ->removeItem(
+                    $request->user(),
+                    $guestToken,
+                    $request->integer(
+                        'cart_item_id'
+                    )
+                );
+
+        $summary =
+            $this->cartService
+                ->getCartSummary(
+                    $request->user(),
+                    $guestToken
+                );
 
         return response()->json([
-            'message' => 'Item removed from cart.',
-            'cart' => new CartResource($cart),
-            'subtotal' => $summary['subtotal'],
-            'total' => $summary['total'],
+            'message' =>
+                'Item removed from cart.',
+
+            'cart' =>
+                new CartResource($cart),
+
+            'subtotal' =>
+                $summary['subtotal'],
+
+            'discount_total' =>
+                $summary['discount_total'],
+
+            'total' =>
+                $summary['total'],
+
+            'item_count' =>
+                $summary['item_count'],
+        ]);
+    }
+
+    /**
+     * Clear all items from cart.
+     */
+    public function clear(
+        Request $request
+    ): JsonResponse {
+        $guestToken =
+            $this->getGuestToken($request);
+
+        $this->cartService->clearCart(
+            $request->user(),
+            $guestToken
+        );
+
+        $summary =
+            $this->cartService
+                ->getCartSummary(
+                    $request->user(),
+                    $guestToken
+                );
+
+        return response()->json([
+            'message' =>
+                'Cart cleared successfully.',
+
+            'cart' =>
+                new CartResource(
+                    $summary['cart']
+                ),
+
+            'subtotal' =>
+                $summary['subtotal'],
+
+            'discount_total' =>
+                $summary['discount_total'],
+
+            'total' =>
+                $summary['total'],
+
+            'item_count' =>
+                $summary['item_count'],
         ]);
     }
 }

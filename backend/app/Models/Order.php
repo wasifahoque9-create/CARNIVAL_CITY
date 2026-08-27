@@ -15,6 +15,16 @@ class Order extends Model
         'status',
         'total_amount',
         'shipping_address_id',
+
+        'guest_name',
+        'guest_email',
+        'guest_phone',
+        'guest_address_line1',
+        'guest_address_line2',
+        'guest_city',
+        'guest_postal_code',
+        'guest_country',
+        'guest_token',
     ];
 
     protected function casts(): array
@@ -32,7 +42,10 @@ class Order extends Model
 
     public function shippingAddress(): BelongsTo
     {
-        return $this->belongsTo(Address::class, 'shipping_address_id');
+        return $this->belongsTo(
+            Address::class,
+            'shipping_address_id'
+        );
     }
 
     public function items(): HasMany

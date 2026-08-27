@@ -2,11 +2,13 @@
 
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BusinessSettingController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\QuotationController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
@@ -18,14 +20,33 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::prefix('auth')->group(function () {
-    Route::post('/register', [AuthController::class, 'register']);
-    Route::post('/login', [AuthController::class, 'login']);
-    Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
-    Route::post('/verify-email', [AuthController::class, 'verifyEmail']);
+    Route::post('/register', [
+        AuthController::class,
+        'register',
+    ]);
 
-    Route::middleware('auth:sanctum')->group(function () {
-        Route::post('/logout', [AuthController::class, 'logout']);
-    });
+    Route::post('/login', [
+        AuthController::class,
+        'login',
+    ]);
+
+    Route::post('/forgot-password', [
+        AuthController::class,
+        'forgotPassword',
+    ]);
+
+    Route::post('/verify-email', [
+        AuthController::class,
+        'verifyEmail',
+    ]);
+
+    Route::middleware('auth:sanctum')
+        ->group(function () {
+            Route::post('/logout', [
+                AuthController::class,
+                'logout',
+            ]);
+        });
 });
 
 /*
@@ -37,10 +58,40 @@ Route::prefix('auth')->group(function () {
 Route::middleware('auth:sanctum')
     ->prefix('users')
     ->group(function () {
-        Route::get('/me', [UserController::class, 'me']);
-        Route::put('/profile', [UserController::class, 'updateProfile']);
-        Route::put('/change-password', [UserController::class, 'changePassword']);
+        Route::get('/me', [
+            UserController::class,
+            'me',
+        ]);
+
+        Route::put('/profile', [
+            UserController::class,
+            'updateProfile',
+        ]);
+
+        Route::put('/change-password', [
+            UserController::class,
+            'changePassword',
+        ]);
     });
+
+/*
+|--------------------------------------------------------------------------
+| Business Settings Routes
+|--------------------------------------------------------------------------
+*/
+
+Route::get('/business-settings', [
+    BusinessSettingController::class,
+    'show',
+]);
+
+Route::middleware([
+    'auth:sanctum',
+    'admin',
+])->put('/admin/business-settings', [
+    BusinessSettingController::class,
+    'update',
+]);
 
 /*
 |--------------------------------------------------------------------------
@@ -48,13 +99,22 @@ Route::middleware('auth:sanctum')
 |--------------------------------------------------------------------------
 */
 
-// Customer storefront routes.
-// These routes show only active products.
-Route::get('/products', [ProductController::class, 'index']);
-Route::get('/products/{product}', [ProductController::class, 'show']);
+// Public storefront
+Route::get('/products', [
+    ProductController::class,
+    'index',
+]);
 
-// Admin product-management routes.
-Route::middleware(['auth:sanctum', 'admin'])
+Route::get('/products/{product}', [
+    ProductController::class,
+    'show',
+]);
+
+// Admin product management
+Route::middleware([
+    'auth:sanctum',
+    'admin',
+])
     ->prefix('admin')
     ->group(function () {
         Route::get('/products', [
@@ -82,33 +142,75 @@ Route::middleware(['auth:sanctum', 'admin'])
             'destroy',
         ]);
     });
+
 /*
 |--------------------------------------------------------------------------
 | Category Routes
 |--------------------------------------------------------------------------
 */
 
-Route::get('/categories', [CategoryController::class, 'index']);
+Route::get('/categories', [
+    CategoryController::class,
+    'index',
+]);
 
-Route::middleware(['auth:sanctum', 'admin'])->group(function () {
-    Route::post('/categories', [CategoryController::class, 'store']);
-    Route::put('/categories/{category}', [CategoryController::class, 'update']);
-    Route::delete('/categories/{category}', [CategoryController::class, 'destroy']);
-});
+Route::middleware([
+    'auth:sanctum',
+    'admin',
+])
+    ->group(function () {
+        Route::post('/categories', [
+            CategoryController::class,
+            'store',
+        ]);
+
+        Route::put('/categories/{category}', [
+            CategoryController::class,
+            'update',
+        ]);
+
+        Route::delete('/categories/{category}', [
+            CategoryController::class,
+            'destroy',
+        ]);
+    });
 
 /*
 |--------------------------------------------------------------------------
 | Cart Routes
 |--------------------------------------------------------------------------
+|
+| Guest and logged-in customers can use the cart.
+| Guests are identified by X-Guest-Cart-Token.
+|
 */
 
-Route::middleware('auth:sanctum')
-    ->prefix('cart')
+Route::prefix('cart')
     ->group(function () {
-        Route::get('/', [CartController::class, 'index']);
-        Route::post('/add', [CartController::class, 'add']);
-        Route::put('/update', [CartController::class, 'update']);
-        Route::delete('/remove', [CartController::class, 'remove']);
+        Route::get('/', [
+            CartController::class,
+            'index',
+        ]);
+
+        Route::post('/add', [
+            CartController::class,
+            'add',
+        ]);
+
+        Route::put('/update', [
+            CartController::class,
+            'update',
+        ]);
+
+        Route::delete('/remove', [
+            CartController::class,
+            'remove',
+        ]);
+
+        Route::delete('/clear', [
+            CartController::class,
+            'clear',
+        ]);
     });
 
 /*
@@ -117,17 +219,71 @@ Route::middleware('auth:sanctum')
 |--------------------------------------------------------------------------
 */
 
+Route::post('/orders', [
+    OrderController::class,
+    'store',
+]);
+
 Route::middleware('auth:sanctum')
     ->prefix('orders')
     ->group(function () {
-        Route::post('/', [OrderController::class, 'store']);
-        Route::get('/', [OrderController::class, 'index']);
-        Route::get('/{order}', [OrderController::class, 'show']);
-        Route::put('/{order}/cancel', [OrderController::class, 'cancel']);
+        Route::get('/', [
+            OrderController::class,
+            'index',
+        ]);
+
+        Route::get('/{order}', [
+            OrderController::class,
+            'show',
+        ]);
+
+        Route::put('/{order}/cancel', [
+            OrderController::class,
+            'cancel',
+        ]);
     });
 
-Route::middleware(['auth:sanctum', 'admin'])
-    ->put('/orders/{order}/status', [OrderController::class, 'updateStatus']);
+Route::middleware([
+    'auth:sanctum',
+    'admin',
+])
+    ->put('/orders/{order}/status', [
+        OrderController::class,
+        'updateStatus',
+    ]);
+
+/*
+|--------------------------------------------------------------------------
+| Quotation Routes
+|--------------------------------------------------------------------------
+*/
+
+Route::post('/quotations', [
+    QuotationController::class,
+    'store',
+]);
+
+Route::middleware([
+    'auth:sanctum',
+    'admin',
+])
+    ->prefix('admin/quotations')
+    ->group(function () {
+        Route::get('/', [
+            QuotationController::class,
+            'index',
+        ]);
+
+        Route::get('/{quotationRequest}', [
+            QuotationController::class,
+            'show',
+        ]);
+
+        Route::put('/{quotationRequest}', [
+            QuotationController::class,
+            'updateStatus',
+        ]);
+    });
 
 /*
 |--------------------------------------------------------------------------
@@ -138,9 +294,20 @@ Route::middleware(['auth:sanctum', 'admin'])
 Route::middleware('auth:sanctum')
     ->prefix('payments')
     ->group(function () {
-        Route::post('/checkout', [PaymentController::class, 'checkout']);
-        Route::get('/history', [PaymentController::class, 'history']);
-        Route::get('/{payment}', [PaymentController::class, 'show']);
+        Route::post('/checkout', [
+            PaymentController::class,
+            'checkout',
+        ]);
+
+        Route::get('/history', [
+            PaymentController::class,
+            'history',
+        ]);
+
+        Route::get('/{payment}', [
+            PaymentController::class,
+            'show',
+        ]);
     });
 
 /*
@@ -149,15 +316,20 @@ Route::middleware('auth:sanctum')
 |--------------------------------------------------------------------------
 */
 
-Route::post('/reviews', [ReviewController::class, 'store'])
-    ->middleware('auth:sanctum');
+Route::post('/reviews', [
+    ReviewController::class,
+    'store',
+])->middleware('auth:sanctum');
 
 Route::get('/reviews/product/{product}', [
     ReviewController::class,
     'forProduct',
 ]);
 
-Route::middleware(['auth:sanctum', 'admin'])
+Route::middleware([
+    'auth:sanctum',
+    'admin',
+])
     ->put('/reviews/{review}/moderate', [
         ReviewController::class,
         'moderate',
@@ -169,23 +341,19 @@ Route::middleware(['auth:sanctum', 'admin'])
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth:sanctum', 'admin'])
+Route::middleware([
+    'auth:sanctum',
+    'admin',
+])
     ->prefix('admin')
     ->group(function () {
-        Route::get('/dashboard', [AdminController::class, 'dashboard']);
-        Route::get('/reviews', [AdminController::class, 'reviews']);
-    });
-   
-Route::middleware('auth:sanctum')
-    ->prefix('admin')
-    ->group(function () {
-        Route::get(
-            '/products',
-            [ProductController::class, 'adminIndex'],
-        );
+        Route::get('/dashboard', [
+            AdminController::class,
+            'dashboard',
+        ]);
 
-        Route::post(
-            '/products',
-            [ProductController::class, 'store'],
-        );
+        Route::get('/reviews', [
+            AdminController::class,
+            'reviews',
+        ]);
     });
