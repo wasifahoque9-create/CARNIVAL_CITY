@@ -983,8 +983,16 @@ export const quotationApi = {
 
 export const adminApi = {
     banners: {
-    list: () =>
-      api<Banner[]>("/banners"),
+  list: () =>
+    api<
+      Banner[] | {
+        data: Banner[];
+      }
+    >("/banners").then((response) =>
+      Array.isArray(response)
+        ? response
+        : response.data ?? []
+    ),
 
     create: (data: FormData) =>
       api<Banner>("/admin/banners", {
