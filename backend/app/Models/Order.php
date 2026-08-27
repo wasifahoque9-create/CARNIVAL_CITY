@@ -15,6 +15,17 @@ class Order extends Model
         'status',
         'total_amount',
         'shipping_address_id',
+
+        // Guest checkout fields
+        'guest_name',
+        'guest_phone',
+        'guest_email',
+        'guest_address_line1',
+        'guest_address_line2',
+        'guest_city',
+        'guest_area',
+        'guest_postal_code',
+        'guest_notes',
     ];
 
     protected function casts(): array

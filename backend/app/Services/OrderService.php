@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
+use App\Models\Cart;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Payment;
@@ -23,8 +24,12 @@ class OrderService
         private PaymentGatewayService $paymentGatewayService,
     ) {}
 
-    public function placeOrder(User $user, int $shippingAddressId, PaymentMethod $method, array $gatewayPayload = []): Order
-    {
+    public function placeOrder(
+        User $user,
+        int $shippingAddressId,
+        PaymentMethod $method,
+        array $gatewayPayload = []
+    ): Order {
         $summary = $this->cartService->getCartSummary($user);
         $cart = $summary['cart'];
 
@@ -36,7 +41,14 @@ class OrderService
 
         $address = $user->addresses()->findOrFail($shippingAddressId);
 
-        return DB::transaction(function () use ($user, $cart, $summary, $address, $method, $gatewayPayload) {
+        return DB::transaction(function () use (
+            $user,
+            $cart,
+            $summary,
+            $address,
+            $method,
+            $gatewayPayload
+        ) {
             $order = Order::create([
                 'user_id' => $user->id,
                 'status' => OrderStatus::Pending,
@@ -66,6 +78,7 @@ class OrderService
                     'status' => PaymentStatus::Paid,
                     'transaction_ref' => 'COD-'.$order->id,
                 ]);
+
                 $this->confirmOrder($order);
             } else {
                 $result = $this->paymentGatewayService->processPayment(
@@ -79,73 +92,268 @@ class OrderService
                         'status' => PaymentStatus::Paid,
                         'transaction_ref' => $result['transaction_ref'],
                     ]);
+
                     $this->confirmOrder($order);
                 } else {
-                    $payment->update(['status' => PaymentStatus::Failed]);
+                    $payment->update([
+                        'status' => PaymentStatus::Failed,
+                    ]);
+
                     throw ValidationException::withMessages([
-                        'payment' => [$result['message'] ?? 'Payment failed.'],
+                        'payment' => [
+                            $result['message'] ?? 'Payment failed.',
+                        ],
                     ]);
                 }
             }
 
             $this->cartService->clearCart($user);
 
-            $order->load(['items.product', 'items.variant', 'shippingAddress', 'payment']);
-            $user->notify(new OrderPlacedNotification($order));
+            $order->load([
+                'items.product',
+                'items.variant',
+                'shippingAddress',
+                'payment',
+            ]);
+
+            $user->notify(
+                new OrderPlacedNotification($order)
+            );
 
             return $order;
         });
     }
 
-    public function cancelOrder(User $user, Order $order): Order
-    {
-        if ($order->user_id !== $user->id && ! $user->isAdmin()) {
-            abort(403, 'You are not authorized to cancel this order.');
+    public function placeGuestOrder(
+        Cart $cart,
+        array $guestData,
+        PaymentMethod $method,
+        array $gatewayPayload = []
+    ): Order {
+        $summary = $this->cartService->getCartSummary($cart);
+        $cart = $summary['cart'];
+
+        if ($cart->items->isEmpty()) {
+            throw ValidationException::withMessages([
+                'cart' => ['Cannot place an order with an empty cart.'],
+            ]);
+        }
+
+        return DB::transaction(function () use (
+            $cart,
+            $summary,
+            $guestData,
+            $method,
+            $gatewayPayload
+        ) {
+            $order = Order::create([
+                'user_id' => null,
+                'shipping_address_id' => null,
+
+                'status' => OrderStatus::Pending,
+                'total_amount' => $summary['total'],
+
+                'guest_name' => $guestData['guest_name'],
+                'guest_phone' => $guestData['guest_phone'],
+                'guest_email' => $guestData['guest_email'] ?? null,
+
+                'guest_address_line1' =>
+                    $guestData['guest_address_line1'],
+
+                'guest_address_line2' =>
+                    $guestData['guest_address_line2'] ?? null,
+
+                'guest_city' => $guestData['guest_city'],
+                'guest_area' => $guestData['guest_area'],
+
+                'guest_postal_code' =>
+                    $guestData['guest_postal_code'] ?? null,
+
+                'guest_notes' =>
+                    $guestData['guest_notes'] ?? null,
+            ]);
+
+            foreach ($cart->items as $item) {
+                OrderItem::create([
+                    'order_id' => $order->id,
+                    'product_id' => $item->product_id,
+                    'product_variant_id' => $item->product_variant_id,
+                    'quantity' => $item->quantity,
+                    'unit_price' => $item->unitPrice(),
+                ]);
+            }
+
+            $payment = Payment::create([
+                'order_id' => $order->id,
+                'method' => $method,
+                'status' => PaymentStatus::Pending,
+                'amount' => $summary['total'],
+            ]);
+
+            if ($method === PaymentMethod::Cod) {
+                $payment->update([
+                    'status' => PaymentStatus::Paid,
+                    'transaction_ref' => 'COD-'.$order->id,
+                ]);
+
+                $this->confirmOrder($order);
+            } else {
+                $result = $this->paymentGatewayService->processPayment(
+                    $order,
+                    $summary['total'],
+                    $gatewayPayload
+                );
+
+                if ($result['success']) {
+                    $payment->update([
+                        'status' => PaymentStatus::Paid,
+                        'transaction_ref' => $result['transaction_ref'],
+                    ]);
+
+                    $this->confirmOrder($order);
+                } else {
+                    $payment->update([
+                        'status' => PaymentStatus::Failed,
+                    ]);
+
+                    throw ValidationException::withMessages([
+                        'payment' => [
+                            $result['message'] ?? 'Payment failed.',
+                        ],
+                    ]);
+                }
+            }
+
+            /*
+             * Remove items from the guest cart
+             * after successful checkout.
+             */
+            $this->cartService->clearCart($cart);
+
+            /*
+             * Remove the empty guest cart record too.
+             */
+            $cart->delete();
+
+            $order->load([
+                'items.product',
+                'items.variant',
+                'shippingAddress',
+                'payment',
+            ]);
+
+            return $order;
+        });
+    }
+
+    public function cancelOrder(
+        User $user,
+        Order $order
+    ): Order {
+        if (
+            $order->user_id !== $user->id
+            && ! $user->isAdmin()
+        ) {
+            abort(
+                403,
+                'You are not authorized to cancel this order.'
+            );
         }
 
         if (! $order->status->canBeCancelledByCustomer()) {
             throw ValidationException::withMessages([
-                'order' => ['Order can only be cancelled before shipment.'],
+                'order' => [
+                    'Order can only be cancelled before shipment.',
+                ],
             ]);
         }
 
         return DB::transaction(function () use ($order, $user) {
             $previousStatus = $order->status;
-            $order->update(['status' => OrderStatus::Cancelled]);
+
+            $order->update([
+                'status' => OrderStatus::Cancelled,
+            ]);
+
             $this->restoreStock($order);
 
-            if ($order->payment && $order->payment->status === PaymentStatus::Paid) {
-                $order->payment->update(['status' => PaymentStatus::Refunded]);
+            if (
+                $order->payment
+                && $order->payment->status === PaymentStatus::Paid
+            ) {
+                $order->payment->update([
+                    'status' => PaymentStatus::Refunded,
+                ]);
             }
 
-            $order->load(['items.product', 'items.variant', 'shippingAddress', 'payment']);
-            $user->notify(new OrderStatusChangedNotification($order, $previousStatus->value));
+            $order->load([
+                'items.product',
+                'items.variant',
+                'shippingAddress',
+                'payment',
+            ]);
+
+            $user->notify(
+                new OrderStatusChangedNotification(
+                    $order,
+                    $previousStatus->value
+                )
+            );
 
             return $order;
         });
     }
 
-    public function updateStatus(Order $order, OrderStatus $status): Order
-    {
+    public function updateStatus(
+        Order $order,
+        OrderStatus $status
+    ): Order {
         return DB::transaction(function () use ($order, $status) {
             $previousStatus = $order->status;
 
             if ($status === OrderStatus::Cancelled) {
                 if (! $order->status->isPreShipment()) {
                     throw ValidationException::withMessages([
-                        'status' => ['Cannot cancel an order that has already shipped.'],
+                        'status' => [
+                            'Cannot cancel an order that has already shipped.',
+                        ],
                     ]);
                 }
+
                 $this->restoreStock($order);
             }
 
-            if ($status === OrderStatus::Confirmed && $order->status === OrderStatus::Pending) {
+            if (
+                $status === OrderStatus::Confirmed
+                && $order->status === OrderStatus::Pending
+            ) {
                 $this->decrementStock($order);
             }
 
-            $order->update(['status' => $status]);
-            $order->load(['items.product', 'items.variant', 'shippingAddress', 'payment', 'user']);
-            $order->user->notify(new OrderStatusChangedNotification($order, $previousStatus->value));
+            $order->update([
+                'status' => $status,
+            ]);
+
+            $order->load([
+                'items.product',
+                'items.variant',
+                'shippingAddress',
+                'payment',
+                'user',
+            ]);
+
+            /*
+             * Guest orders have no User model,
+             * so only notify registered customers.
+             */
+            if ($order->user) {
+                $order->user->notify(
+                    new OrderStatusChangedNotification(
+                        $order,
+                        $previousStatus->value
+                    )
+                );
+            }
 
             return $order;
         });
@@ -158,37 +366,84 @@ class OrderService
         }
 
         $this->decrementStock($order);
-        $order->update(['status' => OrderStatus::Confirmed]);
+
+        $order->update([
+            'status' => OrderStatus::Confirmed,
+        ]);
     }
 
     private function decrementStock(Order $order): void
     {
-        $order->loadMissing('items.product', 'items.variant');
+        $order->loadMissing(
+            'items.product',
+            'items.variant'
+        );
 
         foreach ($order->items as $item) {
-            if ($item->product_variant_id && $item->variant) {
-                ProductVariant::where('id', $item->variant->id)
-                    ->where('stock_qty', '>=', $item->quantity)
-                    ->decrement('stock_qty', $item->quantity);
+            if (
+                $item->product_variant_id
+                && $item->variant
+            ) {
+                ProductVariant::where(
+                    'id',
+                    $item->variant->id
+                )
+                    ->where(
+                        'stock_qty',
+                        '>=',
+                        $item->quantity
+                    )
+                    ->decrement(
+                        'stock_qty',
+                        $item->quantity
+                    );
             } else {
-                Product::where('id', $item->product_id)
-                    ->where('stock_qty', '>=', $item->quantity)
-                    ->decrement('stock_qty', $item->quantity);
+                Product::where(
+                    'id',
+                    $item->product_id
+                )
+                    ->where(
+                        'stock_qty',
+                        '>=',
+                        $item->quantity
+                    )
+                    ->decrement(
+                        'stock_qty',
+                        $item->quantity
+                    );
             }
         }
     }
 
     private function restoreStock(Order $order): void
     {
-        $order->loadMissing('items.product', 'items.variant');
+        $order->loadMissing(
+            'items.product',
+            'items.variant'
+        );
 
         foreach ($order->items as $item) {
-            if ($item->product_variant_id && $item->variant) {
-                ProductVariant::where('id', $item->variant->id)
-                    ->increment('stock_qty', $item->quantity);
+            if (
+                $item->product_variant_id
+                && $item->variant
+            ) {
+                ProductVariant::where(
+                    'id',
+                    $item->variant->id
+                )
+                    ->increment(
+                        'stock_qty',
+                        $item->quantity
+                    );
             } else {
-                Product::where('id', $item->product_id)
-                    ->increment('stock_qty', $item->quantity);
+                Product::where(
+                    'id',
+                    $item->product_id
+                )
+                    ->increment(
+                        'stock_qty',
+                        $item->quantity
+                    );
             }
         }
     }

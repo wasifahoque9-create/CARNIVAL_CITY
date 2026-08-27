@@ -32,14 +32,20 @@ import {
 } from "react-icons/fa6";
 
 import { PageLoader } from "@/components/ui/Spinner";
-import { useRequireAuth } from "@/lib/auth";
 import {
   addressApi,
+  api,
+  authApi,
   cartApi,
   formatPrice,
   orderApi,
 } from "@/lib/api";
-import type { Address, Cart } from "@/types";
+import type {
+  Address,
+  Cart,
+  Order,
+  User,
+} from "@/types";
 
 type PaymentMethod = "cod" | "gateway";
 
@@ -51,6 +57,17 @@ const INITIAL_ADDRESS = {
   postal_code: "",
   country: "US",
   is_default: true,
+};
+
+const INITIAL_GUEST_DETAILS = {
+  name: "",
+  phone: "",
+  email: "",
+  line1: "",
+  line2: "",
+  city: "",
+  area: "",
+  postal_code: "",
 };
 
 function getErrorMessage(
@@ -75,12 +92,13 @@ function getErrorMessage(
 }
 
 export default function CheckoutPage() {
-  const {
-    user,
-    loading: authLoading,
-  } = useRequireAuth();
-
   const router = useRouter();
+
+  const [user, setUser] =
+    useState<User | null>(null);
+
+  const [authLoading, setAuthLoading] =
+    useState(true);
 
   const [cart, setCart] =
     useState<Cart | null>(null);
@@ -122,8 +140,45 @@ export default function CheckoutPage() {
   const [newAddress, setNewAddress] =
     useState(INITIAL_ADDRESS);
 
+  const [guestDetails, setGuestDetails] =
+    useState(INITIAL_GUEST_DETAILS);
+
+  const [
+    completedGuestOrderId,
+    setCompletedGuestOrderId,
+  ] = useState<number | null>(null);
+
   useEffect(() => {
-    if (authLoading || !user) {
+    let pageIsActive = true;
+
+    async function loadCurrentUser() {
+      try {
+        const currentUser =
+          await authApi.getUser();
+
+        if (pageIsActive) {
+          setUser(currentUser);
+        }
+      } catch {
+        if (pageIsActive) {
+          setUser(null);
+        }
+      } finally {
+        if (pageIsActive) {
+          setAuthLoading(false);
+        }
+      }
+    }
+
+    void loadCurrentUser();
+
+    return () => {
+      pageIsActive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (authLoading) {
       return;
     }
 
@@ -134,11 +189,11 @@ export default function CheckoutPage() {
         setLoading(true);
         setError("");
 
-        const [cartData, addressData] =
-          await Promise.all([
-            cartApi.get(),
-            addressApi.list(),
-          ]);
+        const cartData = await cartApi.get();
+
+        const addressData = user
+          ? await addressApi.list()
+          : [];
 
         if (!pageIsActive) {
           return;
@@ -203,6 +258,13 @@ export default function CheckoutPage() {
         Number(item.quantity ?? 0),
       0,
     ) ?? 0;
+
+  const guestDetailsReady =
+    guestDetails.name.trim() !== "" &&
+    guestDetails.phone.trim() !== "" &&
+    guestDetails.line1.trim() !== "" &&
+    guestDetails.city.trim() !== "" &&
+    guestDetails.area.trim() !== "";
 
   async function handleAddAddress() {
     if (!newAddress.line1.trim()) {
@@ -270,9 +332,16 @@ export default function CheckoutPage() {
   ) {
     event.preventDefault();
 
-    if (!addressId) {
+    if (user && !addressId) {
       setError(
         "Please select a shipping address.",
+      );
+      return;
+    }
+
+    if (!user && !guestDetailsReady) {
+      setError(
+        "Please complete the required delivery information.",
       );
       return;
     }
@@ -281,18 +350,53 @@ export default function CheckoutPage() {
     setError("");
 
     try {
-      const order =
-        await orderApi.checkout({
+      let order: Order;
+
+      if (user) {
+        order = await orderApi.checkout({
           shipping_address_id:
             Number(addressId),
           payment_method:
             paymentMethod,
         });
+      } else {
+        const response = await api<
+          Order | { data: Order }
+        >("/orders", {
+          method: "POST",
+          body: JSON.stringify({
+            guest_name:
+              guestDetails.name.trim(),
+            guest_phone:
+              guestDetails.phone.trim(),
+            guest_email:
+              guestDetails.email.trim() ||
+              undefined,
+            guest_address_line1:
+              guestDetails.line1.trim(),
+            guest_address_line2:
+              guestDetails.line2.trim() ||
+              undefined,
+            guest_city:
+              guestDetails.city.trim(),
+            guest_area:
+              guestDetails.area.trim(),
+            guest_postal_code:
+              guestDetails.postal_code.trim() ||
+              undefined,
+            guest_notes:
+              notes.trim() || undefined,
+            payment_method:
+              paymentMethod,
+          }),
+        });
 
-      /*
-       * This updates a cart counter if your
-       * navbar listens for this event.
-       */
+        order =
+          "data" in response
+            ? response.data
+            : response;
+      }
+
       window.dispatchEvent(
         new CustomEvent(
           "shopsphere:cart-updated",
@@ -304,9 +408,32 @@ export default function CheckoutPage() {
         ),
       );
 
-      router.push(
-        `/orders/${order.id}`,
-      );
+      if (user) {
+        router.push(
+          `/orders/${order.id}`,
+        );
+      } else {
+        localStorage.removeItem(
+          "guest_token",
+        );
+
+        setCart((current) =>
+          current
+            ? {
+                ...current,
+                items: [],
+                subtotal: 0,
+                discount_total: 0,
+                total: 0,
+                item_count: 0,
+              }
+            : current,
+        );
+
+        setCompletedGuestOrderId(
+          order.id,
+        );
+      }
     } catch (error) {
       console.error(
         "Checkout failed:",
@@ -328,8 +455,12 @@ export default function CheckoutPage() {
     return <PageLoader />;
   }
 
-  if (!user) {
-    return null;
+  if (completedGuestOrderId) {
+    return (
+      <GuestOrderSuccess
+        orderId={completedGuestOrderId}
+      />
+    );
   }
 
   if (!cart?.items?.length) {
@@ -399,9 +530,9 @@ export default function CheckoutPage() {
                 </h1>
 
                 <p className="mt-2 max-w-xl text-sm leading-6 text-white/65">
-                  Confirm your shipping address
-                  and payment method before
-                  placing your order.
+                  {user
+                    ? "Confirm your shipping address and payment method before placing your order."
+                    : "Enter your delivery information and choose a payment method to place your order."}
                 </p>
               </div>
             </div>
@@ -450,36 +581,190 @@ export default function CheckoutPage() {
               <SectionHeading
                 number="01"
                 eyebrow="Delivery information"
-                title="Shipping Address"
-                description="Select where you want your order delivered."
+                title={
+                  user
+                    ? "Shipping Address"
+                    : "Delivery Details"
+                }
+                description={
+                  user
+                    ? "Select where you want your order delivered."
+                    : "Enter the contact and address details needed to deliver your order."
+                }
                 action={
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setShowAddressForm(
-                        (current) =>
-                          !current,
-                      )
-                    }
-                    className="inline-flex items-center gap-2 rounded-xl border border-[#121358]/15 px-4 py-2.5 text-sm font-bold text-[#121358] transition hover:border-[#F59E0B] hover:bg-[#F59E0B] hover:text-white"
-                  >
-                    {showAddressForm ? (
-                      <>
-                        <FaXmark size={12} />
-                        Cancel
-                      </>
-                    ) : (
-                      <>
-                        <FaPlus size={12} />
-                        Add New Address
-                      </>
-                    )}
-                  </button>
+                  user ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setShowAddressForm(
+                          (current) =>
+                            !current,
+                        )
+                      }
+                      className="inline-flex items-center gap-2 rounded-xl border border-[#121358]/15 px-4 py-2.5 text-sm font-bold text-[#121358] transition hover:border-[#F59E0B] hover:bg-[#F59E0B] hover:text-white"
+                    >
+                      {showAddressForm ? (
+                        <>
+                          <FaXmark size={12} />
+                          Cancel
+                        </>
+                      ) : (
+                        <>
+                          <FaPlus size={12} />
+                          Add New Address
+                        </>
+                      )}
+                    </button>
+                  ) : undefined
                 }
               />
 
               <div className="p-5 sm:p-6">
-                {showAddressForm ? (
+                {!user ? (
+                  <div className="rounded-2xl border border-[#121358]/10 bg-[#f8f8ff] p-5 sm:p-6">
+                    <div className="mb-5 flex items-center gap-3">
+                      <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#121358] text-[#F59E0B]">
+                        <FaLocationDot />
+                      </span>
+
+                      <div>
+                        <h3 className="font-black text-[#121358]">
+                          Guest Delivery Information
+                        </h3>
+
+                        <p className="mt-1 text-xs text-slate-500">
+                          No account is required. Enter
+                          the information needed to
+                          deliver this order.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <CheckoutInput
+                        label="Full Name"
+                        required
+                        value={guestDetails.name}
+                        onChange={(value) =>
+                          setGuestDetails(
+                            (current) => ({
+                              ...current,
+                              name: value,
+                            }),
+                          )
+                        }
+                        placeholder="Full name"
+                      />
+
+                      <CheckoutInput
+                        label="Phone Number"
+                        required
+                        value={guestDetails.phone}
+                        onChange={(value) =>
+                          setGuestDetails(
+                            (current) => ({
+                              ...current,
+                              phone: value,
+                            }),
+                          )
+                        }
+                        placeholder="Phone number"
+                      />
+
+                      <CheckoutInput
+                        label="Email"
+                        value={guestDetails.email}
+                        onChange={(value) =>
+                          setGuestDetails(
+                            (current) => ({
+                              ...current,
+                              email: value,
+                            }),
+                          )
+                        }
+                        placeholder="Email (optional)"
+                        className="sm:col-span-2"
+                      />
+
+                      <CheckoutInput
+                        label="Address Line 1"
+                        required
+                        value={guestDetails.line1}
+                        onChange={(value) =>
+                          setGuestDetails(
+                            (current) => ({
+                              ...current,
+                              line1: value,
+                            }),
+                          )
+                        }
+                        placeholder="House, road or street"
+                        className="sm:col-span-2"
+                      />
+
+                      <CheckoutInput
+                        label="Address Line 2"
+                        value={guestDetails.line2}
+                        onChange={(value) =>
+                          setGuestDetails(
+                            (current) => ({
+                              ...current,
+                              line2: value,
+                            }),
+                          )
+                        }
+                        placeholder="Apartment, suite or floor"
+                        className="sm:col-span-2"
+                      />
+
+                      <CheckoutInput
+                        label="City"
+                        required
+                        value={guestDetails.city}
+                        onChange={(value) =>
+                          setGuestDetails(
+                            (current) => ({
+                              ...current,
+                              city: value,
+                            }),
+                          )
+                        }
+                        placeholder="City"
+                      />
+
+                      <CheckoutInput
+                        label="Area"
+                        required
+                        value={guestDetails.area}
+                        onChange={(value) =>
+                          setGuestDetails(
+                            (current) => ({
+                              ...current,
+                              area: value,
+                            }),
+                          )
+                        }
+                        placeholder="Area"
+                      />
+
+                      <CheckoutInput
+                        label="Postal Code"
+                        value={
+                          guestDetails.postal_code
+                        }
+                        onChange={(value) =>
+                          setGuestDetails(
+                            (current) => ({
+                              ...current,
+                              postal_code: value,
+                            }),
+                          )
+                        }
+                        placeholder="Postal code (optional)"
+                      />
+                    </div>
+                  </div>
+                ) : showAddressForm ? (
                   <div className="rounded-2xl border border-[#121358]/10 bg-[#f8f8ff] p-5 sm:p-6">
                     <div className="mb-5 flex items-center gap-3">
                       <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#121358] text-[#F59E0B]">
@@ -889,7 +1174,7 @@ export default function CheckoutPage() {
                   </p>
                 </div>
 
-                {selectedAddress && (
+                {user && selectedAddress && (
                   <div className="mt-5 rounded-xl border border-[#121358]/10 bg-[#f8f8ff] p-4">
                     <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-[#121358]">
                       <FaLocationDot className="text-[#F59E0B]" />
@@ -919,12 +1204,46 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
+                {!user &&
+                  guestDetails.line1.trim() && (
+                    <div className="mt-5 rounded-xl border border-[#121358]/10 bg-[#f8f8ff] p-4">
+                      <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-[#121358]">
+                        <FaLocationDot className="text-[#F59E0B]" />
+                        Delivering to
+                      </p>
+
+                      <p className="mt-2 text-sm font-bold text-slate-700">
+                        {guestDetails.name ||
+                          "Guest Customer"}
+                      </p>
+
+                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                        {guestDetails.line1}
+                        {guestDetails.line2
+                          ? `, ${guestDetails.line2}`
+                          : ""}
+                        <br />
+                        {guestDetails.area}
+                        {guestDetails.area &&
+                        guestDetails.city
+                          ? ", "
+                          : ""}
+                        {guestDetails.city}
+                        {guestDetails.postal_code
+                          ? `, ${guestDetails.postal_code}`
+                          : ""}
+                      </p>
+                    </div>
+                  )}
+
                 <button
                   type="submit"
                   disabled={
                     submitting ||
                     savingAddress ||
-                    !addressId
+                    (user
+                      ? !addressId
+                      : !guestDetailsReady)
                   }
                   className="group relative mt-5 flex w-full items-center justify-center gap-3 overflow-hidden rounded-xl bg-gradient-to-r from-[#F59E0B] to-orange-500 px-5 py-4 text-sm font-black text-white shadow-lg shadow-orange-500/25 transition hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:from-slate-300 disabled:to-slate-400 disabled:shadow-none disabled:hover:translate-y-0"
                 >
@@ -1336,6 +1655,50 @@ function NoAddress({
         Add Shipping Address
       </button>
     </div>
+  );
+}
+
+function GuestOrderSuccess({
+  orderId,
+}: {
+  orderId: number;
+}) {
+  return (
+    <main className="relative flex min-h-[75vh] items-center justify-center overflow-hidden bg-[#f4f5ff] px-4 py-16">
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(18,19,88,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(18,19,88,0.035)_1px,transparent_1px)] bg-[size:32px_32px]" />
+
+      <section className="relative mx-auto max-w-2xl rounded-3xl border border-white bg-white p-8 text-center shadow-2xl shadow-[#121358]/10 sm:p-14">
+        <span className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-100 text-3xl text-emerald-600">
+          <FaCheck />
+        </span>
+
+        <p className="mt-8 text-xs font-black uppercase tracking-[0.22em] text-[#F59E0B]">
+          Order confirmed
+        </p>
+
+        <h1 className="mt-3 text-3xl font-black text-[#121358]">
+          Thank You for Your Order
+        </h1>
+
+        <p className="mx-auto mt-4 max-w-md text-sm leading-7 text-slate-500">
+          Your order has been placed successfully.
+          Your order number is{" "}
+          <span className="font-black text-[#121358]">
+            #{String(orderId).padStart(6, "0")}
+          </span>
+          .
+        </p>
+
+        <Link
+          href="/products"
+          className="mt-8 inline-flex items-center gap-3 rounded-2xl bg-gradient-to-r from-[#F59E0B] to-orange-500 px-7 py-3.5 text-sm font-black text-white shadow-lg transition hover:-translate-y-1 hover:shadow-xl"
+        >
+          <FaBoxOpen />
+          Continue Shopping
+          <FaChevronRight size={11} />
+        </Link>
+      </section>
+    </main>
   );
 }
 
