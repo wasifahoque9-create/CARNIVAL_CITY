@@ -51,37 +51,64 @@ class ProductController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $search = trim(
-            (string) $request->query('search', ''),
-        );
+       $search = trim(
+    (string) $request->query('search', ''),
+);
 
-        if ($search !== '') {
-            $query->where(
-                function ($productQuery) use ($search) {
-                    $productQuery
-                        ->where(
-                            'name',
-                            'like',
-                            "%{$search}%",
-                        )
-                        ->orWhere(
-                            'description',
-                            'like',
-                            "%{$search}%",
-                        )
-                        ->orWhere(
-                            'brand',
-                            'like',
-                            "%{$search}%",
-                        )
-                        ->orWhere(
-                            'sku',
-                            'like',
-                            "%{$search}%",
-                        );
-                },
-            );
+if ($search !== '') {
+    $searchTerms = preg_split(
+        '/\s+/',
+        strtolower($search),
+        -1,
+        PREG_SPLIT_NO_EMPTY,
+    );
+
+    // Every search word must match at least one
+    // product field.
+    $query->where(function ($productQuery) use ($searchTerms) {
+        foreach ($searchTerms as $term) {
+            $productQuery->where(function ($termQuery) use ($term) {
+                $like = "%{$term}%";
+
+                $termQuery
+                    ->whereRaw('LOWER(name) LIKE ?', [$like])
+                    ->orWhereRaw('LOWER(brand) LIKE ?', [$like])
+                    ->orWhereRaw('LOWER(description) LIKE ?', [$like])
+                    ->orWhereRaw('LOWER(sku) LIKE ?', [$like]);
+            });
         }
+    });
+
+    // Put the strongest matches first.
+    $query->orderByRaw(
+        implode(' + ', array_fill(
+            0,
+            count($searchTerms),
+            "CASE
+                WHEN LOWER(name) LIKE ? THEN 4
+                WHEN LOWER(brand) LIKE ? THEN 3
+                WHEN LOWER(description) LIKE ? THEN 2
+                WHEN LOWER(sku) LIKE ? THEN 1
+                ELSE 0
+            END"
+        )),
+        collect($searchTerms)
+            ->flatMap(function ($term) {
+                $like = "%{$term}%";
+
+                return [
+                    $like,
+                    $like,
+                    $like,
+                    $like,
+                ];
+            })
+            ->values()
+            ->all(),
+    );
+
+    $query->orderBy('name');
+}
 
         /*
         |--------------------------------------------------------------------------
