@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  type FormEvent,
   useCallback,
   useEffect,
   useState,
@@ -20,6 +21,7 @@ import {
 } from "@/lib/api";
 
 import type {
+  DeliveryStatus,
   Order,
   OrderStatus,
 } from "@/types";
@@ -212,6 +214,56 @@ function getCustomerType(
     : "guest";
 }
 
+
+/*
+|--------------------------------------------------------------------------
+| Delivery Tracking Helpers
+|--------------------------------------------------------------------------
+*/
+
+const deliveryStatusOptions: Array<{
+  value: DeliveryStatus;
+  label: string;
+}> = [
+  {
+    value: "shipped",
+    label: "Shipped",
+  },
+  {
+    value: "in_transit",
+    label: "In Transit",
+  },
+  {
+    value: "out_for_delivery",
+    label: "Out for Delivery",
+  },
+  {
+    value: "delivered",
+    label: "Delivered",
+  },
+];
+
+function getDeliveryStatusLabel(
+  status?: DeliveryStatus | null,
+): string {
+  switch (status) {
+    case "shipped":
+      return "Shipped";
+
+    case "in_transit":
+      return "In Transit";
+
+    case "out_for_delivery":
+      return "Out for Delivery";
+
+    case "delivered":
+      return "Delivered";
+
+    default:
+      return "Not Started";
+  }
+}
+
 /*
 |--------------------------------------------------------------------------
 | Admin Orders Page
@@ -245,6 +297,16 @@ export default function AdminOrdersPage() {
     error,
     setError,
   ] = useState("");
+
+  const [
+    trackingOrder,
+    setTrackingOrder,
+  ] = useState<Order | null>(null);
+
+  const [
+    trackingSaving,
+    setTrackingSaving,
+  ] = useState(false);
 
   /*
   |--------------------------------------------------------------------------
@@ -345,6 +407,59 @@ export default function AdminOrdersPage() {
       );
     } finally {
       setUpdatingId(null);
+    }
+  }
+
+
+  /*
+  |--------------------------------------------------------------------------
+  | Update Delivery Tracking
+  |--------------------------------------------------------------------------
+  */
+
+  async function handleDeliveryTrackingUpdate(
+    order: Order,
+    data: {
+      delivery_person_name?: string | null;
+      delivery_person_phone?: string | null;
+      tracking_number?: string | null;
+      delivery_status: DeliveryStatus;
+      delivery_note?: string | null;
+    },
+  ) {
+    try {
+      setTrackingSaving(true);
+      setError("");
+
+      const updated =
+        await adminApi.orders
+          .updateDeliveryTracking(
+            order.id,
+            data,
+          );
+
+      setOrders((current) =>
+        current.map(
+          (currentOrder) =>
+            currentOrder.id ===
+            order.id
+              ? updated
+              : currentOrder,
+        ),
+      );
+
+      setTrackingOrder(null);
+    } catch (error) {
+      console.error(
+        "Unable to update delivery tracking:",
+        error,
+      );
+
+      setError(
+        getErrorMessage(error),
+      );
+    } finally {
+      setTrackingSaving(false);
     }
   }
 
@@ -602,6 +717,9 @@ export default function AdminOrdersPage() {
                           onStatusChange={
                             handleStatusChange
                           }
+                          onOpenTracking={
+                            setTrackingOrder
+                          }
                         />
                       </td>
                     </tr>
@@ -625,6 +743,341 @@ export default function AdminOrdersPage() {
           </div>
         )}
       </Card>
+
+      {trackingOrder && (
+        <DeliveryTrackingModal
+          order={trackingOrder}
+          saving={trackingSaving}
+          onClose={() =>
+            setTrackingOrder(null)
+          }
+          onSave={
+            handleDeliveryTrackingUpdate
+          }
+        />
+      )}
+    </div>
+  );
+}
+
+/*
+|--------------------------------------------------------------------------
+| Delivery Tracking Modal
+|--------------------------------------------------------------------------
+*/
+
+function DeliveryTrackingModal({
+  order,
+  saving,
+  onClose,
+  onSave,
+}: {
+  order: Order;
+
+  saving: boolean;
+
+  onClose: () => void;
+
+  onSave: (
+    order: Order,
+    data: {
+      delivery_person_name?:
+        | string
+        | null;
+      delivery_person_phone?:
+        | string
+        | null;
+      tracking_number?:
+        | string
+        | null;
+      delivery_status:
+        DeliveryStatus;
+      delivery_note?:
+        | string
+        | null;
+    },
+  ) => Promise<void>;
+}) {
+  const [
+    deliveryPersonName,
+    setDeliveryPersonName,
+  ] = useState(
+    order.delivery_person_name ?? "",
+  );
+
+  const [
+    deliveryPersonPhone,
+    setDeliveryPersonPhone,
+  ] = useState(
+    order.delivery_person_phone ?? "",
+  );
+
+  const [
+    trackingNumber,
+    setTrackingNumber,
+  ] = useState(
+    order.tracking_number ?? "",
+  );
+
+  const [
+    deliveryStatus,
+    setDeliveryStatus,
+  ] = useState<DeliveryStatus>(
+    order.delivery_status ??
+      (order.status === "delivered"
+        ? "delivered"
+        : "shipped"),
+  );
+
+  const [
+    deliveryNote,
+    setDeliveryNote,
+  ] = useState(
+    order.delivery_note ?? "",
+  );
+
+  const lockedDelivered =
+    order.status === "delivered";
+
+  function handleSubmit(
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+
+    void onSave(order, {
+      delivery_person_name:
+        deliveryPersonName.trim() ||
+        null,
+
+      delivery_person_phone:
+        deliveryPersonPhone.trim() ||
+        null,
+
+      tracking_number:
+        trackingNumber.trim() ||
+        null,
+
+      delivery_status:
+        lockedDelivered
+          ? "delivered"
+          : deliveryStatus,
+
+      delivery_note:
+        deliveryNote.trim() ||
+        null,
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+      <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4 sm:px-6">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#F59E0B]">
+              Home Delivery
+            </p>
+
+            <h2 className="mt-1 text-xl font-black text-[#121358]">
+              Delivery Tracking
+            </h2>
+
+            <p className="mt-1 text-sm text-muted">
+              {formatOrderNumber(order)}
+              {" · "}
+              {getCustomerName(order)}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="rounded-lg border border-border px-3 py-1.5 text-sm font-bold text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Close
+          </button>
+        </div>
+
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-5 p-5 sm:p-6"
+        >
+          <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold text-blue-700">
+                  Current delivery status
+                </p>
+
+                <p className="mt-1 font-black text-[#121358]">
+                  {getDeliveryStatusLabel(
+                    order.delivery_status,
+                  )}
+                </p>
+              </div>
+
+              {order.delivery_updated_at && (
+                <p className="text-xs font-medium text-blue-700">
+                  Updated{" "}
+                  {new Date(
+                    order.delivery_updated_at,
+                  ).toLocaleString()}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-bold text-[#121358]">
+                Delivery Person Name
+              </span>
+
+              <input
+                type="text"
+                value={deliveryPersonName}
+                onChange={(event) =>
+                  setDeliveryPersonName(
+                    event.target.value,
+                  )
+                }
+                placeholder="e.g. Rahim Ahmed"
+                maxLength={150}
+                disabled={saving}
+                className="w-full rounded-xl border border-border bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-[#121358] focus:ring-2 focus:ring-[#121358]/10 disabled:cursor-not-allowed disabled:bg-gray-50"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-bold text-[#121358]">
+                Delivery Person Phone
+              </span>
+
+              <input
+                type="text"
+                value={deliveryPersonPhone}
+                onChange={(event) =>
+                  setDeliveryPersonPhone(
+                    event.target.value,
+                  )
+                }
+                placeholder="e.g. 017XXXXXXXX"
+                maxLength={30}
+                disabled={saving}
+                className="w-full rounded-xl border border-border bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-[#121358] focus:ring-2 focus:ring-[#121358]/10 disabled:cursor-not-allowed disabled:bg-gray-50"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-bold text-[#121358]">
+                Tracking Number
+              </span>
+
+              <input
+                type="text"
+                value={trackingNumber}
+                onChange={(event) =>
+                  setTrackingNumber(
+                    event.target.value,
+                  )
+                }
+                placeholder="e.g. SS-000015"
+                maxLength={100}
+                disabled={saving}
+                className="w-full rounded-xl border border-border bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-[#121358] focus:ring-2 focus:ring-[#121358]/10 disabled:cursor-not-allowed disabled:bg-gray-50"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-bold text-[#121358]">
+                Delivery Status
+              </span>
+
+              <select
+                value={
+                  lockedDelivered
+                    ? "delivered"
+                    : deliveryStatus
+                }
+                onChange={(event) =>
+                  setDeliveryStatus(
+                    event.target
+                      .value as DeliveryStatus,
+                  )
+                }
+                disabled={
+                  saving ||
+                  lockedDelivered
+                }
+                className="w-full rounded-xl border border-border bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-[#121358] focus:ring-2 focus:ring-[#121358]/10 disabled:cursor-not-allowed disabled:bg-gray-50"
+              >
+                {deliveryStatusOptions.map(
+                  (option) => (
+                    <option
+                      key={option.value}
+                      value={option.value}
+                    >
+                      {option.label}
+                    </option>
+                  ),
+                )}
+              </select>
+
+              {lockedDelivered && (
+                <p className="mt-1 text-xs text-emerald-600">
+                  Completed orders remain
+                  Delivered.
+                </p>
+              )}
+            </label>
+          </div>
+
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-bold text-[#121358]">
+              Delivery Note
+            </span>
+
+            <textarea
+              value={deliveryNote}
+              onChange={(event) =>
+                setDeliveryNote(
+                  event.target.value,
+                )
+              }
+              placeholder="Optional delivery note for the customer..."
+              rows={4}
+              maxLength={1000}
+              disabled={saving}
+              className="w-full resize-none rounded-xl border border-border bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-[#121358] focus:ring-2 focus:ring-[#121358]/10 disabled:cursor-not-allowed disabled:bg-gray-50"
+            />
+          </label>
+
+          <div className="flex flex-col-reverse gap-3 border-t border-border pt-5 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="rounded-xl border border-border px-4 py-2.5 text-sm font-bold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              disabled={saving}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#121358] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#292c82] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saving && (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+              )}
+
+              {saving
+                ? "Saving..."
+                : "Save Tracking"}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
@@ -639,6 +1092,7 @@ function OrderActions({
   order,
   updating,
   onStatusChange,
+  onOpenTracking,
 }: {
   order: Order;
 
@@ -648,6 +1102,10 @@ function OrderActions({
     order: Order,
     status: OrderStatus,
   ) => Promise<void>;
+
+  onOpenTracking: (
+    order: Order,
+  ) => void;
 }) {
   if (updating) {
     return (
@@ -749,18 +1207,33 @@ function OrderActions({
     "shipped"
   ) {
     return (
-      <button
-        type="button"
-        onClick={() =>
-          void onStatusChange(
-            order,
-            "delivered",
-          )
-        }
-        className="rounded-lg bg-[#F59E0B] px-3 py-2 text-xs font-bold text-white transition hover:bg-orange-600"
-      >
-        Mark Delivered
-      </button>
+      <div className="flex flex-wrap gap-2">
+        {order.delivery_method ===
+          "home_delivery" && (
+          <button
+            type="button"
+            onClick={() =>
+              onOpenTracking(order)
+            }
+            className="rounded-lg bg-[#121358] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#292c82]"
+          >
+            Delivery Tracking
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={() =>
+            void onStatusChange(
+              order,
+              "delivered",
+            )
+          }
+          className="rounded-lg bg-[#F59E0B] px-3 py-2 text-xs font-bold text-white transition hover:bg-orange-600"
+        >
+          Mark Delivered
+        </button>
+      </div>
     );
   }
 
@@ -772,9 +1245,24 @@ function OrderActions({
     "delivered"
   ) {
     return (
-      <span className="text-xs font-bold text-emerald-600">
-        Completed
-      </span>
+      <div className="flex flex-wrap items-center gap-2">
+        {order.delivery_method ===
+          "home_delivery" && (
+          <button
+            type="button"
+            onClick={() =>
+              onOpenTracking(order)
+            }
+            className="rounded-lg border border-[#121358]/20 bg-[#121358]/5 px-3 py-2 text-xs font-bold text-[#121358] transition hover:bg-[#121358]/10"
+          >
+            View Tracking
+          </button>
+        )}
+
+        <span className="text-xs font-bold text-emerald-600">
+          Completed
+        </span>
+      </div>
     );
   }
 

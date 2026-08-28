@@ -14,6 +14,12 @@ export type DeliveryMethod =
   | "home_delivery"
   | "pickup";
 
+export type DeliveryStatus =
+  | "shipped"
+  | "in_transit"
+  | "out_for_delivery"
+  | "delivered";
+
 export type PaymentStatus =
   | "pending"
   | "paid"
@@ -285,6 +291,7 @@ export interface Payment {
 | - Guest customer orders
 | - Home Delivery
 | - Store Pickup
+| - Delivery Tracking
 |
 */
 
@@ -300,10 +307,6 @@ export interface Order {
 
   /*
    * Customer summary
-   *
-   * Used by admin order list.
-   * Works for both guest
-   * and registered customers.
    */
   customer_name?:
     | string
@@ -323,8 +326,7 @@ export interface Order {
   status: OrderStatus;
 
   /*
-   * Final total:
-   * cart amount + delivery charge
+   * Final total
    */
   total_amount: number;
 
@@ -335,16 +337,42 @@ export interface Order {
     DeliveryMethod;
 
   /*
-   * Home Delivery charge.
-   * Pickup should be 0.
+   * Delivery charge
    */
   delivery_charge: number;
 
   /*
-   * Logged-in customer's
-   * saved delivery address.
+   * Delivery Tracking
    *
-   * Pickup can be null.
+   * Used only for Home Delivery.
+   */
+  delivery_person_name?:
+    | string
+    | null;
+
+  delivery_person_phone?:
+    | string
+    | null;
+
+  tracking_number?:
+    | string
+    | null;
+
+  delivery_status?:
+    | DeliveryStatus
+    | null;
+
+  delivery_note?:
+    | string
+    | null;
+
+  delivery_updated_at?:
+    | string
+    | null;
+
+  /*
+   * Logged-in customer's
+   * saved shipping address.
    */
   shipping_address_id?:
     | number
@@ -370,10 +398,7 @@ export interface Order {
     | null;
 
   /*
-   * Guest delivery address.
-   *
-   * These may be null
-   * when Pickup is selected.
+   * Guest delivery address
    */
   guest_address_line1?:
     | string
@@ -400,7 +425,7 @@ export interface Order {
     | null;
 
   /*
-   * Order relations
+   * Relations
    */
   items?: OrderItem[];
 
@@ -420,54 +445,51 @@ export interface Order {
 
 /*
 |--------------------------------------------------------------------------
+| Delivery Tracking Update Payload
+|--------------------------------------------------------------------------
+*/
+
+export interface DeliveryTrackingPayload {
+  delivery_person_name?:
+    | string
+    | null;
+
+  delivery_person_phone?:
+    | string
+    | null;
+
+  tracking_number?:
+    | string
+    | null;
+
+  delivery_status:
+    DeliveryStatus;
+
+  delivery_note?:
+    | string
+    | null;
+}
+
+/*
+|--------------------------------------------------------------------------
 | Checkout Payload
 |--------------------------------------------------------------------------
-|
-| One interface supports:
-|
-| Logged-in + Home Delivery
-| Logged-in + Pickup
-| Guest + Home Delivery
-| Guest + Pickup
-|
 */
 
 export interface CheckoutPayload {
-  /*
-   * Required:
-   * home_delivery | pickup
-   */
   delivery_method:
     DeliveryMethod;
 
-  /*
-   * Logged-in Home Delivery
-   *
-   * Pickup can send null
-   * or omit this field.
-   */
   shipping_address_id?:
     | number
     | null;
 
-  /*
-   * Guest customer info.
-   *
-   * Required by backend
-   * for guest checkout.
-   */
   guest_name?: string;
 
   guest_email?: string;
 
   guest_phone?: string;
 
-  /*
-   * Guest Home Delivery
-   * address fields.
-   *
-   * Pickup does not need them.
-   */
   guest_address_line1?: string;
 
   guest_address_line2?: string;
@@ -478,9 +500,6 @@ export interface CheckoutPayload {
 
   guest_country?: string;
 
-  /*
-   * Payment
-   */
   payment_method:
     | "cod"
     | "gateway";

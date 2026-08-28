@@ -12,6 +12,7 @@ use App\Models\Order;
 use App\Services\OrderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class OrderController extends Controller
 {
@@ -41,49 +42,25 @@ class OrderController extends Controller
     |--------------------------------------------------------------------------
     | Place Order
     |--------------------------------------------------------------------------
-    |
-    | Supports:
-    |
-    | 1. Logged-in + Home Delivery
-    | 2. Logged-in + Pickup
-    | 3. Guest + Home Delivery
-    | 4. Guest + Pickup
-    |
     */
 
     public function store(
         StoreOrderRequest $request
     ): JsonResponse {
-        /*
-         * Public route হলেও যদি Authorization
-         * Bearer token থাকে, Sanctum user পাওয়া যাবে।
-         */
         $user =
             $request->user('sanctum');
 
-        /*
-         * Guest cart token.
-         */
         $guestToken =
             $this->getGuestToken(
                 $request
             );
 
-        /*
-         * home_delivery / pickup
-         */
         $deliveryMethod =
             (string) $request->input(
                 'delivery_method',
                 'home_delivery'
             );
 
-        /*
-         * Saved shipping address.
-         *
-         * Logged-in Home Delivery-এর জন্য।
-         * Pickup হলে null হতে পারবে।
-         */
         $shippingAddressId =
             $request->filled(
                 'shipping_address_id'
@@ -93,9 +70,6 @@ class OrderController extends Controller
                 )
                 : null;
 
-        /*
-         * Payment method.
-         */
         $paymentMethod =
             PaymentMethod::from(
                 (string) $request->input(
@@ -103,12 +77,6 @@ class OrderController extends Controller
                 )
             );
 
-        /*
-         * Guest customer information.
-         *
-         * Logged-in হলে OrderService
-         * এগুলো ignore করবে।
-         */
         $guestData = [
             'guest_name' =>
                 $request->input(
@@ -151,18 +119,12 @@ class OrderController extends Controller
                 ),
         ];
 
-        /*
-         * Optional online-payment data.
-         */
         $gatewayPayload =
             $request->input(
                 'gateway_payload',
                 []
             );
 
-        /*
-         * Create order.
-         */
         $order =
             $this->orderService
                 ->placeOrder(
@@ -174,6 +136,14 @@ class OrderController extends Controller
                     $guestData,
                     $gatewayPayload,
                 );
+
+        $order->loadMissing([
+            'user',
+            'items.product',
+            'items.variant',
+            'shippingAddress',
+            'payment',
+        ]);
 
         return response()->json([
             'message' =>
@@ -198,6 +168,7 @@ class OrderController extends Controller
         $query =
             Order::query()
                 ->with([
+                    'user',
                     'items.product',
                     'items.variant',
                     'shippingAddress',
@@ -205,10 +176,6 @@ class OrderController extends Controller
                 ])
                 ->latest();
 
-        /*
-         * Customer only sees their own orders.
-         * Admin sees all orders.
-         */
         if (
             ! $request->user()->isAdmin()
         ) {
@@ -271,6 +238,69 @@ class OrderController extends Controller
         }
 
         $order->load([
+            'user',
+            'items.product',
+            'items.variant',
+            'shippingAddress',
+            'payment',
+        ]);
+
+        return response()->json([
+            'data' =>
+                new OrderResource(
+                    $order
+                ),
+        ]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Guest Order Details / Tracking
+    |--------------------------------------------------------------------------
+    */
+
+    public function guestShow(
+        Request $request,
+        Order $order
+    ): JsonResponse {
+        /*
+         * Registered customer orders are not available
+         * through the guest tracking endpoint.
+         */
+        if (! is_null($order->user_id)) {
+            return response()->json([
+                'message' =>
+                    'This order is not a guest order.',
+            ], 403);
+        }
+
+        $guestToken =
+            $this->getGuestToken(
+                $request
+            );
+
+        /*
+         * Guest token is required and must exactly match
+         * the token stored with this guest order.
+         */
+        if (
+            empty($guestToken)
+            ||
+            empty($order->guest_token)
+            ||
+            ! hash_equals(
+                (string) $order->guest_token,
+                (string) $guestToken
+            )
+        ) {
+            return response()->json([
+                'message' =>
+                    'Invalid or missing guest order token.',
+            ], 403);
+        }
+
+        $order->load([
+            'user',
             'items.product',
             'items.variant',
             'shippingAddress',
@@ -301,6 +331,14 @@ class OrderController extends Controller
                     $request->user(),
                     $order
                 );
+
+        $order->loadMissing([
+            'user',
+            'items.product',
+            'items.variant',
+            'shippingAddress',
+            'payment',
+        ]);
 
         return response()->json([
             'message' =>
@@ -337,9 +375,228 @@ class OrderController extends Controller
                     $status
                 );
 
+        /*
+         * Home Delivery order Shipped হলে
+         * delivery tracking শুরু হবে।
+         */
+        if (
+            $order->delivery_method ===
+                'home_delivery'
+            &&
+            $status ===
+                OrderStatus::Shipped
+            &&
+            empty(
+                $order->delivery_status
+            )
+        ) {
+            $order->update([
+                'delivery_status' =>
+                    'shipped',
+
+                'delivery_updated_at' =>
+                    now(),
+            ]);
+        }
+
+        /*
+         * Main order Delivered হলে
+         * tracking status-ও Delivered।
+         */
+        if (
+            $order->delivery_method ===
+                'home_delivery'
+            &&
+            $status ===
+                OrderStatus::Delivered
+        ) {
+            $order->update([
+                'delivery_status' =>
+                    'delivered',
+
+                'delivery_updated_at' =>
+                    now(),
+            ]);
+        }
+
+        $order->loadMissing([
+            'user',
+            'items.product',
+            'items.variant',
+            'shippingAddress',
+            'payment',
+        ]);
+
         return response()->json([
             'message' =>
                 'Order status updated successfully.',
+
+            'data' =>
+                new OrderResource(
+                    $order
+                ),
+        ]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Admin Update Delivery Tracking
+    |--------------------------------------------------------------------------
+    */
+
+    public function updateDeliveryTracking(
+        Request $request,
+        Order $order
+    ): JsonResponse {
+        /*
+         * Store Pickup order-এ delivery tracking নেই।
+         */
+        if (
+            $order->delivery_method !==
+            'home_delivery'
+        ) {
+            return response()->json([
+                'message' =>
+                    'Delivery tracking is only available for home delivery orders.',
+            ], 422);
+        }
+
+        /*
+         * Cancelled order update করা যাবে না।
+         */
+        if (
+            $order->status ===
+            OrderStatus::Cancelled
+        ) {
+            return response()->json([
+                'message' =>
+                    'Cancelled orders cannot be updated for delivery tracking.',
+            ], 422);
+        }
+
+        /*
+         * Tracking শুরু হবে Shipped হওয়ার পর।
+         */
+        if (
+            $order->status !==
+                OrderStatus::Shipped
+            &&
+            $order->status !==
+                OrderStatus::Delivered
+        ) {
+            return response()->json([
+                'message' =>
+                    'Mark the order as shipped before updating delivery tracking.',
+            ], 422);
+        }
+
+        $validated =
+            $request->validate([
+                'delivery_person_name' => [
+                    'nullable',
+                    'string',
+                    'max:150',
+                ],
+
+                'delivery_person_phone' => [
+                    'nullable',
+                    'string',
+                    'max:30',
+                ],
+
+                'tracking_number' => [
+                    'nullable',
+                    'string',
+                    'max:100',
+                ],
+
+                'delivery_status' => [
+                    'required',
+                    'string',
+                    Rule::in([
+                        'shipped',
+                        'in_transit',
+                        'out_for_delivery',
+                        'delivered',
+                    ]),
+                ],
+
+                'delivery_note' => [
+                    'nullable',
+                    'string',
+                    'max:1000',
+                ],
+            ]);
+
+        $order->update([
+            'delivery_person_name' =>
+                $validated[
+                    'delivery_person_name'
+                ] ?? null,
+
+            'delivery_person_phone' =>
+                $validated[
+                    'delivery_person_phone'
+                ] ?? null,
+
+            'tracking_number' =>
+                $validated[
+                    'tracking_number'
+                ] ?? null,
+
+            'delivery_status' =>
+                $validated[
+                    'delivery_status'
+                ],
+
+            'delivery_note' =>
+                $validated[
+                    'delivery_note'
+                ] ?? null,
+
+            'delivery_updated_at' =>
+                now(),
+        ]);
+
+        /*
+         * Tracking Delivered হলে
+         * main order-ও Delivered হবে।
+         */
+        if (
+            $validated[
+                'delivery_status'
+            ] === 'delivered'
+            &&
+            $order->status !==
+                OrderStatus::Delivered
+        ) {
+            $order =
+                $this->orderService
+                    ->updateStatus(
+                        $order,
+                        OrderStatus::Delivered
+                    );
+
+            $order->update([
+                'delivery_status' =>
+                    'delivered',
+
+                'delivery_updated_at' =>
+                    now(),
+            ]);
+        }
+
+        $order->loadMissing([
+            'user',
+            'items.product',
+            'items.variant',
+            'shippingAddress',
+            'payment',
+        ]);
+
+        return response()->json([
+            'message' =>
+                'Delivery tracking updated successfully.',
 
             'data' =>
                 new OrderResource(

@@ -19,6 +19,25 @@ class Order extends Model
         'delivery_method',
         'delivery_charge',
 
+        /*
+        |--------------------------------------------------------------------------
+        | Delivery Tracking
+        |--------------------------------------------------------------------------
+        */
+
+        'delivery_person_name',
+        'delivery_person_phone',
+        'tracking_number',
+        'delivery_status',
+        'delivery_note',
+        'delivery_updated_at',
+
+        /*
+        |--------------------------------------------------------------------------
+        | Guest Customer Information
+        |--------------------------------------------------------------------------
+        */
+
         'guest_name',
         'guest_email',
         'guest_phone',
@@ -36,13 +55,33 @@ class Order extends Model
             'total_amount' => 'decimal:2',
             'delivery_charge' => 'decimal:2',
             'status' => OrderStatus::class,
+
+            /*
+            |--------------------------------------------------------------------------
+            | Delivery Tracking
+            |--------------------------------------------------------------------------
+            */
+
+            'delivery_updated_at' => 'datetime',
         ];
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | User
+    |--------------------------------------------------------------------------
+    */
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Shipping Address
+    |--------------------------------------------------------------------------
+    */
 
     public function shippingAddress(): BelongsTo
     {
@@ -52,10 +91,22 @@ class Order extends Model
         );
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Order Items
+    |--------------------------------------------------------------------------
+    */
+
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class);
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Payment
+    |--------------------------------------------------------------------------
+    */
 
     public function payment(): HasOne
     {

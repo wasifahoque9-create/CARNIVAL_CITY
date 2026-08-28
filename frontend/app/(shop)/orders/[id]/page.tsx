@@ -176,6 +176,48 @@ function getProgressIndex(
   return -1;
 }
 
+
+function getDeliveryProgressIndex(
+  deliveryStatus: string | null | undefined,
+  orderStatus: string,
+): number {
+  const normalizedDeliveryStatus = String(
+    deliveryStatus ?? "",
+  ).toLowerCase();
+
+  if (normalizedDeliveryStatus === "delivered") {
+    return 3;
+  }
+
+  if (
+    normalizedDeliveryStatus ===
+    "out_for_delivery"
+  ) {
+    return 2;
+  }
+
+  if (normalizedDeliveryStatus === "in_transit") {
+    return 1;
+  }
+
+  if (normalizedDeliveryStatus === "shipped") {
+    return 0;
+  }
+
+  const normalizedOrderStatus =
+    orderStatus.toLowerCase();
+
+  if (normalizedOrderStatus === "delivered") {
+    return 3;
+  }
+
+  if (normalizedOrderStatus === "shipped") {
+    return 0;
+  }
+
+  return -1;
+}
+
 /* =========================================================
    ORDER DETAILS PAGE
 ========================================================= */
@@ -506,6 +548,13 @@ export default function OrderDetailPage() {
         <OrderProgress
           status={status}
         />
+
+        {order.delivery_method ===
+          "home_delivery" && (
+          <DeliveryTracking
+            order={order}
+          />
+        )}
 
         <div className="mt-7 grid items-start gap-7 lg:grid-cols-[minmax(0,1fr)_380px]">
           {/* Ordered products */}
@@ -1044,6 +1093,283 @@ function OrderProgress({
         </div>
       </div>
     </section>
+  );
+}
+
+
+/* =========================================================
+   DELIVERY TRACKING
+========================================================= */
+
+const deliveryTrackingSteps = [
+  {
+    value: "shipped",
+    label: "Shipped",
+    description:
+      "Your order has left the store for delivery.",
+    icon: <FaTruckFast />,
+  },
+  {
+    value: "in_transit",
+    label: "In Transit",
+    description:
+      "Your order is moving toward your delivery area.",
+    icon: <FaLocationDot />,
+  },
+  {
+    value: "out_for_delivery",
+    label: "Out for Delivery",
+    description:
+      "Your order is with the delivery person and is arriving soon.",
+    icon: <FaClock />,
+  },
+  {
+    value: "delivered",
+    label: "Delivered",
+    description:
+      "Your order has been delivered successfully.",
+    icon: <FaHouse />,
+  },
+] as const;
+
+type DeliveryTrackingProps = {
+  order: Order;
+};
+
+function DeliveryTracking({
+  order,
+}: DeliveryTrackingProps) {
+  const orderStatus = String(
+    order.status,
+  ).toLowerCase();
+
+  const activeIndex =
+    getDeliveryProgressIndex(
+      order.delivery_status,
+      orderStatus,
+    );
+
+  const trackingStarted =
+    activeIndex >= 0;
+
+  const currentStatusLabel =
+    activeIndex >= 0
+      ? deliveryTrackingSteps[activeIndex]
+          .label
+      : "Waiting for shipment";
+
+  return (
+    <section className="mt-7 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex flex-col gap-4 border-b border-slate-100 bg-gradient-to-r from-white to-[#f8f8ff] px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <div className="flex items-center gap-4">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#121358] text-xl text-[#F59E0B] shadow-lg">
+            <FaTruckFast />
+          </span>
+
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#F59E0B]">
+              Home delivery
+            </p>
+
+            <h2 className="mt-1 text-xl font-black text-[#121358]">
+              Delivery Tracking
+            </h2>
+
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              Follow your delivery after the order is shipped.
+            </p>
+          </div>
+        </div>
+
+        <span className="inline-flex w-fit rounded-full bg-[#121358]/10 px-3 py-1.5 text-xs font-black text-[#121358]">
+          {currentStatusLabel}
+        </span>
+      </div>
+
+      <div className="p-5 sm:p-6">
+        {!trackingStarted ? (
+          <div className="flex items-start gap-4 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-4">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+              <FaClock />
+            </span>
+
+            <div>
+              <p className="text-sm font-black text-[#121358]">
+                Delivery tracking has not started yet
+              </p>
+
+              <p className="mt-1 text-xs leading-5 text-slate-600">
+                Tracking details will appear here after the store marks this order as shipped.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="relative">
+            <div className="absolute left-[12.5%] right-[12.5%] top-6 hidden h-1 rounded-full bg-slate-100 md:block" />
+
+            <div
+              className="absolute left-[12.5%] top-6 hidden h-1 rounded-full bg-gradient-to-r from-[#121358] to-[#F59E0B] transition-all duration-500 md:block"
+              style={{
+                width:
+                  activeIndex <= 0
+                    ? "0%"
+                    : `${
+                        (activeIndex /
+                          (deliveryTrackingSteps.length -
+                            1)) *
+                        75
+                      }%`,
+              }}
+            />
+
+            <div className="relative grid gap-3 md:grid-cols-4">
+              {deliveryTrackingSteps.map(
+                (step, index) => {
+                  const completed =
+                    index <= activeIndex;
+
+                  const current =
+                    index === activeIndex;
+
+                  return (
+                    <div
+                      key={step.value}
+                      className={`flex items-start gap-4 rounded-xl border p-4 transition md:flex-col md:items-center md:border-0 md:bg-transparent md:p-0 md:text-center ${
+                        current
+                          ? "border-[#F59E0B]/30 bg-[#fffaf0]"
+                          : "border-slate-100 bg-slate-50 md:border-0 md:bg-transparent"
+                      }`}
+                    >
+                      <span
+                        className={`relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 text-sm transition ${
+                          completed
+                            ? "border-[#F59E0B] bg-[#121358] text-[#F59E0B] shadow-lg"
+                            : "border-slate-200 bg-white text-slate-300"
+                        }`}
+                      >
+                        {step.icon}
+                      </span>
+
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 md:justify-center">
+                          <p
+                            className={`text-sm font-black ${
+                              completed
+                                ? "text-[#121358]"
+                                : "text-slate-400"
+                            }`}
+                          >
+                            {step.label}
+                          </p>
+
+                          {current && (
+                            <span className="rounded-full bg-[#F59E0B]/10 px-2 py-1 text-[9px] font-black uppercase tracking-wider text-[#F59E0B]">
+                              Current
+                            </span>
+                          )}
+                        </div>
+
+                        <p
+                          className={`mt-1 text-xs leading-5 ${
+                            completed
+                              ? "text-slate-500"
+                              : "text-slate-400"
+                          }`}
+                        >
+                          {step.description}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                },
+              )}
+            </div>
+          </div>
+        )}
+
+        {(order.delivery_person_name ||
+          order.delivery_person_phone ||
+          order.tracking_number ||
+          order.delivery_note ||
+          order.delivery_updated_at) && (
+          <div className="mt-6 grid gap-4 border-t border-slate-100 pt-6 lg:grid-cols-[1fr_1fr]">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {order.delivery_person_name && (
+                <DeliveryInfoItem
+                  label="Delivery Person"
+                  value={
+                    order.delivery_person_name
+                  }
+                />
+              )}
+
+              {order.delivery_person_phone && (
+                <DeliveryInfoItem
+                  label="Phone"
+                  value={
+                    order.delivery_person_phone
+                  }
+                />
+              )}
+
+              {order.tracking_number && (
+                <DeliveryInfoItem
+                  label="Tracking Number"
+                  value={
+                    order.tracking_number
+                  }
+                />
+              )}
+
+              {order.delivery_updated_at && (
+                <DeliveryInfoItem
+                  label="Last Updated"
+                  value={`${formatDate(
+                    order.delivery_updated_at,
+                  )} • ${formatTime(
+                    order.delivery_updated_at,
+                  )}`}
+                />
+              )}
+            </div>
+
+            {order.delivery_note && (
+              <div className="rounded-xl border border-[#121358]/10 bg-[#f8f8ff] p-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#F59E0B]">
+                  Delivery Note
+                </p>
+
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  {order.delivery_note}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+type DeliveryInfoItemProps = {
+  label: string;
+  value: string;
+};
+
+function DeliveryInfoItem({
+  label,
+  value,
+}: DeliveryInfoItemProps) {
+  return (
+    <div className="rounded-xl bg-slate-50 px-4 py-3">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+        {label}
+      </p>
+
+      <p className="mt-1 break-words text-sm font-black text-[#121358]">
+        {value}
+      </p>
+    </div>
   );
 }
 

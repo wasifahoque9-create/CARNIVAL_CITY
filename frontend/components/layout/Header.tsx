@@ -137,6 +137,15 @@ export default function Header() {
               </span>
             </Link>
 
+            {!isAuthenticated && (
+              <Link
+                href="/track-order"
+                className="rounded-lg px-3 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-secondary"
+              >
+                Track Order
+              </Link>
+            )}
+
             {isAuthenticated ? (
               <>
                 <Link
@@ -310,6 +319,14 @@ export default function Header() {
                   label="Shopping Cart"
                   onClick={() => setMenuOpen(false)}
                 />
+
+                {!isAuthenticated && (
+                  <MobileNavLink
+                    href="/track-order"
+                    label="Track Order"
+                    onClick={() => setMenuOpen(false)}
+                  />
+                )}
 
                 {isAuthenticated ? (
                   <>
