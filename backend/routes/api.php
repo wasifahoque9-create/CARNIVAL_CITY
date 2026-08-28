@@ -409,3 +409,35 @@ Route::middleware([
     });
 
 Route::get('/banners', [BannerController::class, 'index']);
+/*
+|--------------------------------------------------------------------------
+| Admin Banner Routes
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware([
+    'auth:sanctum',
+    'admin',
+])
+    ->prefix('admin')
+    ->group(function () {
+        Route::get('/banners', [
+            BannerController::class,
+            'adminIndex',
+        ]);
+
+        Route::post('/banners', [
+            BannerController::class,
+            'store',
+        ]);
+
+        Route::put('/banners/{banner}', [
+            BannerController::class,
+            'update',
+        ]);
+
+        Route::delete('/banners/{banner}', [
+            BannerController::class,
+            'destroy',
+        ]);
+    });
