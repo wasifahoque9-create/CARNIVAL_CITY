@@ -9,12 +9,65 @@ class OrderResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        /*
+        |--------------------------------------------------------------------------
+        | Customer Information
+        |--------------------------------------------------------------------------
+        |
+        | 
+        */
+
+        $isRegistered = !is_null($this->user_id);
+
+        $customerName = $isRegistered
+            ? ($this->user?->name ?? 'Registered Customer')
+            : ($this->guest_name ?? 'Guest Customer');
+
+        $customerEmail = $isRegistered
+            ? ($this->user?->email ?? null)
+            : $this->guest_email;
+
         return [
+            /*
+            |--------------------------------------------------------------------------
+            | Basic Order Information
+            |--------------------------------------------------------------------------
+            */
+
             'id' => $this->id,
 
             'user_id' => $this->user_id,
 
+            /*
+            |--------------------------------------------------------------------------
+            | Customer Summary
+            |--------------------------------------------------------------------------
+            |
+            | 
+            |
+            */
+
+            'customer_name' => $customerName,
+
+            'customer_email' => $customerEmail,
+
+            'customer_type' => $isRegistered
+                ? 'registered'
+                : 'guest',
+
+            /*
+            |--------------------------------------------------------------------------
+            | Order Status
+            |--------------------------------------------------------------------------
+            */
+
             'status' => $this->status->value,
+
+            /*
+            |--------------------------------------------------------------------------
+            | Order Total
+            |--------------------------------------------------------------------------
+            */
 
             'total_amount' => $this->total_amount,
 
@@ -24,11 +77,9 @@ class OrderResource extends JsonResource
             |--------------------------------------------------------------------------
             */
 
-            'delivery_method' =>
-                $this->delivery_method,
+            'delivery_method' => $this->delivery_method,
 
-            'delivery_charge' =>
-                $this->delivery_charge,
+            'delivery_charge' => $this->delivery_charge,
 
             /*
             |--------------------------------------------------------------------------
@@ -36,15 +87,11 @@ class OrderResource extends JsonResource
             |--------------------------------------------------------------------------
             */
 
-            'shipping_address_id' =>
-                $this->shipping_address_id,
+            'shipping_address_id' => $this->shipping_address_id,
 
-            'shipping_address' =>
-                new AddressResource(
-                    $this->whenLoaded(
-                        'shippingAddress'
-                    )
-                ),
+            'shipping_address' => new AddressResource(
+                $this->whenLoaded('shippingAddress')
+            ),
 
             /*
             |--------------------------------------------------------------------------
@@ -52,29 +99,21 @@ class OrderResource extends JsonResource
             |--------------------------------------------------------------------------
             */
 
-            'guest_name' =>
-                $this->guest_name,
+            'guest_name' => $this->guest_name,
 
-            'guest_email' =>
-                $this->guest_email,
+            'guest_email' => $this->guest_email,
 
-            'guest_phone' =>
-                $this->guest_phone,
+            'guest_phone' => $this->guest_phone,
 
-            'guest_address_line1' =>
-                $this->guest_address_line1,
+            'guest_address_line1' => $this->guest_address_line1,
 
-            'guest_address_line2' =>
-                $this->guest_address_line2,
+            'guest_address_line2' => $this->guest_address_line2,
 
-            'guest_city' =>
-                $this->guest_city,
+            'guest_city' => $this->guest_city,
 
-            'guest_postal_code' =>
-                $this->guest_postal_code,
+            'guest_postal_code' => $this->guest_postal_code,
 
-            'guest_country' =>
-                $this->guest_country,
+            'guest_country' => $this->guest_country,
 
             /*
             |--------------------------------------------------------------------------
@@ -82,26 +121,17 @@ class OrderResource extends JsonResource
             |--------------------------------------------------------------------------
             */
 
-            'items' =>
-                OrderItemResource::collection(
-                    $this->whenLoaded(
-                        'items'
-                    )
-                ),
+            'items' => OrderItemResource::collection(
+                $this->whenLoaded('items')
+            ),
 
-            'payment' =>
-                new PaymentResource(
-                    $this->whenLoaded(
-                        'payment'
-                    )
-                ),
+            'payment' => new PaymentResource(
+                $this->whenLoaded('payment')
+            ),
 
-            'user' =>
-                new UserResource(
-                    $this->whenLoaded(
-                        'user'
-                    )
-                ),
+            'user' => new UserResource(
+                $this->whenLoaded('user')
+            ),
 
             /*
             |--------------------------------------------------------------------------
@@ -109,11 +139,9 @@ class OrderResource extends JsonResource
             |--------------------------------------------------------------------------
             */
 
-            'created_at' =>
-                $this->created_at,
+            'created_at' => $this->created_at,
 
-            'updated_at' =>
-                $this->updated_at,
+            'updated_at' => $this->updated_at,
         ];
     }
 }

@@ -299,6 +299,25 @@ export interface Order {
     | null;
 
   /*
+   * Customer summary
+   *
+   * Used by admin order list.
+   * Works for both guest
+   * and registered customers.
+   */
+  customer_name?:
+    | string
+    | null;
+
+  customer_email?:
+    | string
+    | null;
+
+  customer_type?:
+    | "guest"
+    | "registered";
+
+  /*
    * Order state
    */
   status: OrderStatus;
@@ -386,6 +405,10 @@ export interface Order {
   items?: OrderItem[];
 
   payment?: Payment;
+
+  user?:
+    | User
+    | null;
 
   /*
    * Timestamps

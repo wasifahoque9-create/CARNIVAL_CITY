@@ -24,6 +24,12 @@ import type {
   OrderStatus,
 } from "@/types";
 
+/*
+|--------------------------------------------------------------------------
+| Status Filter Options
+|--------------------------------------------------------------------------
+*/
+
 const statusOptions = [
   {
     value: "",
@@ -51,6 +57,12 @@ const statusOptions = [
   },
 ];
 
+/*
+|--------------------------------------------------------------------------
+| Status Label
+|--------------------------------------------------------------------------
+*/
+
 function getStatusLabel(
   status: OrderStatus,
 ): string {
@@ -75,6 +87,12 @@ function getStatusLabel(
   }
 }
 
+/*
+|--------------------------------------------------------------------------
+| Delivery Label
+|--------------------------------------------------------------------------
+*/
+
 function getDeliveryLabel(
   order: Order,
 ): string {
@@ -83,6 +101,12 @@ function getDeliveryLabel(
     ? "Store Pickup"
     : "Home Delivery";
 }
+
+/*
+|--------------------------------------------------------------------------
+| Error Message
+|--------------------------------------------------------------------------
+*/
 
 function getErrorMessage(
   error: unknown,
@@ -107,6 +131,92 @@ function getErrorMessage(
 
   return "Something went wrong. Please try again.";
 }
+
+/*
+|--------------------------------------------------------------------------
+| Customer Name
+|--------------------------------------------------------------------------
+|
+| Backend customer_name থাকলে সেটাই ব্যবহার করবে।
+| Fallback হিসেবে guest_name অথবা user.name ব্যবহার করবে।
+|
+*/
+
+function getCustomerName(
+  order: Order,
+): string {
+  if (order.customer_name) {
+    return order.customer_name;
+  }
+
+  if (order.user?.name) {
+    return order.user.name;
+  }
+
+  if (order.guest_name) {
+    return order.guest_name;
+  }
+
+  return "Unknown Customer";
+}
+
+/*
+|--------------------------------------------------------------------------
+| Customer Email
+|--------------------------------------------------------------------------
+*/
+
+function getCustomerEmail(
+  order: Order,
+): string | null {
+  if (order.customer_email) {
+    return order.customer_email;
+  }
+
+  if (order.user?.email) {
+    return order.user.email;
+  }
+
+  if (order.guest_email) {
+    return order.guest_email;
+  }
+
+  return null;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Customer Type
+|--------------------------------------------------------------------------
+*/
+
+function getCustomerType(
+  order: Order,
+): "guest" | "registered" {
+  if (
+    order.customer_type ===
+    "registered"
+  ) {
+    return "registered";
+  }
+
+  if (
+    order.customer_type ===
+    "guest"
+  ) {
+    return "guest";
+  }
+
+  return order.user_id
+    ? "registered"
+    : "guest";
+}
+
+/*
+|--------------------------------------------------------------------------
+| Admin Orders Page
+|--------------------------------------------------------------------------
+*/
 
 export default function AdminOrdersPage() {
   const [
@@ -341,19 +451,72 @@ export default function AdminOrdersPage() {
                     updatingId ===
                     order.id;
 
+                  const customerName =
+                    getCustomerName(
+                      order,
+                    );
+
+                  const customerEmail =
+                    getCustomerEmail(
+                      order,
+                    );
+
+                  const customerType =
+                    getCustomerType(
+                      order,
+                    );
+
                   return (
                     <tr
                       key={order.id}
                       className="border-t border-border align-middle"
                     >
-                      {/* Order Number */}
+                      {/* Order + Customer */}
 
                       <td className="px-4 py-4">
-                        <p className="font-black text-[#121358]">
-                          {formatOrderNumber(
-                            order,
+                        <div className="min-w-[180px]">
+                          {/* Order Number */}
+
+                          <p className="font-black text-[#121358]">
+                            {formatOrderNumber(
+                              order,
+                            )}
+                          </p>
+
+                          {/* Customer Name */}
+
+                          <p className="mt-1.5 text-sm font-bold text-gray-800">
+                            {customerName}
+                          </p>
+
+                          {/* Customer Type */}
+
+                          <div className="mt-1">
+                            {customerType ===
+                            "registered" ? (
+                              <span className="inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                                Registered
+                              </span>
+                            ) : (
+                              <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                                Guest
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Customer Email */}
+
+                          {customerEmail && (
+                            <p
+                              className="mt-1 max-w-[190px] truncate text-xs text-muted"
+                              title={
+                                customerEmail
+                              }
+                            >
+                              {customerEmail}
+                            </p>
                           )}
-                        </p>
+                        </div>
                       </td>
 
                       {/* Date */}
