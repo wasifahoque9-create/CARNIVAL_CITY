@@ -7,14 +7,18 @@ use App\Enums\ProductStatus;
 use App\Enums\ReviewStatus;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Admin\StoreCustomerRequest;
+use App\Http\Requests\Api\Admin\UpdateCustomerRequest;
 use App\Http\Resources\OrderResource;
 use App\Http\Resources\ReviewResource;
+use App\Http\Resources\UserResource;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Review;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 
 class AdminController extends Controller
 {
@@ -51,7 +55,15 @@ class AdminController extends Controller
             ->latest();
 
         if ($request->filled('status')) {
-            $query->where('status', ReviewStatus::from($request->string('status')));
+            $status = ReviewStatus::tryFrom($request->string('status')->toString());
+
+            if ($status === null) {
+                return response()->json([
+                    'message' => 'Invalid status filter.',
+                ], 422);
+            }
+
+            $query->where('status', $status);
         }
 
         $reviews = $query->paginate($request->integer('per_page', 15));
@@ -65,5 +77,74 @@ class AdminController extends Controller
                 'total' => $reviews->total(),
             ],
         ]);
+    }
+
+    public function customers(Request $request): JsonResponse
+    {
+        $customers = User::query()
+            ->where('role', UserRole::Customer)
+            ->when($request->filled('search'), function ($query) use ($request) {
+                $search = $request->string('search')->toString();
+
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                      ->orWhere('email', 'like', "%{$search}%")
+                      ->orWhere('phone', 'like', "%{$search}%");
+                });
+            })
+            ->orderByDesc('created_at')
+            ->paginate($request->integer('per_page', 20));
+
+        return response()->json([
+            'data' => UserResource::collection($customers),
+            'meta' => [
+                'current_page' => $customers->currentPage(),
+                'last_page' => $customers->lastPage(),
+                'per_page' => $customers->perPage(),
+                'total' => $customers->total(),
+            ],
+        ]);
+    }
+
+    public function storeCustomer(StoreCustomerRequest $request): JsonResponse
+    {
+        $customer = User::create([
+            'name' => $request->string('name'),
+            'email' => $request->string('email'),
+            'phone' => $request->input('phone'),
+            'password' => Hash::make($request->string('password')),
+            'email_verified_at' => now(),
+            'role' => UserRole::Customer,
+        ]);
+
+        return response()->json([
+            'message' => 'Customer created successfully.',
+            'customer' => new UserResource($customer),
+        ], 201);
+    }
+
+    public function updateCustomer(UpdateCustomerRequest $request, User $customer): JsonResponse
+    {
+        $customer->update([
+            'name' => $request->string('name'),
+            'email' => $request->string('email'),
+            'phone' => $request->input('phone'),
+        ]);
+
+        return response()->json([
+            'message' => 'Customer updated successfully.',
+            'customer' => new UserResource($customer),
+        ]);
+    }
+
+    public function destroyCustomer(User $customer): JsonResponse
+    {
+        if ($customer->role === UserRole::Admin) {
+            return response()->json(['message' => 'Cannot delete an admin account.'], 403);
+        }
+
+        $customer->delete();
+
+        return response()->json(['message' => 'Customer deleted successfully.']);
     }
 }

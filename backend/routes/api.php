@@ -1,9 +1,9 @@
 <?php
 
-use App\Http\Controllers\Api\BannerController;
 use App\Http\Controllers\Api\Admin\BannerController as AdminBannerController;
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BannerController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\OrderController;
@@ -20,18 +20,88 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::prefix('auth')->group(function () {
-    Route::post('/register', [AuthController::class, 'register']);
-    Route::post('/login', [AuthController::class, 'login']);
-    Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
-    Route::post('/verify-email', [AuthController::class, 'verifyEmail']);
-    Route::post('/google', [AuthController::class, 'googleLogin']);
-    Route::post('/send-otp', [AuthController::class, 'sendOtp']);
-    Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Public Authentication Routes
+    |--------------------------------------------------------------------------
+    */
+
+    // Register with email + password
+    Route::post('/register', [
+        AuthController::class,
+        'register',
+    ]);
+
+    // Login with email + password
+    Route::post('/login', [
+        AuthController::class,
+        'login',
+    ]);
+
+    // Forgot password
+    Route::post('/forgot-password', [
+        AuthController::class,
+        'forgotPassword',
+    ]);
+
+    // Reset password
+    Route::post('/reset-password', [
+        AuthController::class,
+        'resetPassword',
+    ]);
+
+    // Verify email
+    Route::post('/verify-email', [
+        AuthController::class,
+        'verifyEmail',
+    ]);
+
+    // Google login / registration
+    Route::post('/google', [
+        AuthController::class,
+        'googleLogin',
+    ]);
+
+    // Send phone OTP
+    Route::post('/send-otp', [
+        AuthController::class,
+        'sendOtp',
+    ]);
+
+    // Verify phone OTP
+    Route::post('/verify-otp', [
+        AuthController::class,
+        'verifyOtp',
+    ]);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Protected Authentication Routes
+    |--------------------------------------------------------------------------
+    */
 
     Route::middleware('auth:sanctum')->group(function () {
-        Route::post('/logout', [AuthController::class, 'logout']);
+
+        // Logout current authenticated session
+        Route::post('/logout', [
+            AuthController::class,
+            'logout',
+        ]);
+
+        /*
+         * Set a local password.
+         *
+         * Used primarily by users who originally registered/logged in
+         * through Google and currently have password_set = false.
+         */
+        Route::post('/set-password', [
+            AuthController::class,
+            'setPassword',
+        ]);
     });
 });
+
 
 /*
 |--------------------------------------------------------------------------
@@ -42,10 +112,31 @@ Route::prefix('auth')->group(function () {
 Route::middleware('auth:sanctum')
     ->prefix('users')
     ->group(function () {
-        Route::get('/me', [UserController::class, 'me']);
-        Route::put('/profile', [UserController::class, 'updateProfile']);
-        Route::put('/change-password', [UserController::class, 'changePassword']);
+
+        // Current authenticated user
+        Route::get('/me', [
+            UserController::class,
+            'me',
+        ]);
+
+        // Update profile
+        Route::put('/profile', [
+            UserController::class,
+            'updateProfile',
+        ]);
+
+        /*
+         * Change existing password.
+         *
+         * This should normally be used by users who already have
+         * password_set = true.
+         */
+        Route::put('/change-password', [
+            UserController::class,
+            'changePassword',
+        ]);
     });
+
 
 /*
 |--------------------------------------------------------------------------
@@ -53,7 +144,12 @@ Route::middleware('auth:sanctum')
 |--------------------------------------------------------------------------
 */
 
-Route::get('/banners', [BannerController::class, 'index']);
+// Public banner list
+Route::get('/banners', [
+    BannerController::class,
+    'index',
+]);
+
 
 /*
 |--------------------------------------------------------------------------
@@ -61,18 +157,18 @@ Route::get('/banners', [BannerController::class, 'index']);
 |--------------------------------------------------------------------------
 */
 
-Route::get('/products', [ProductController::class, 'index']);
-Route::get('/products/{product}', [ProductController::class, 'show']);
+// Public products
+Route::get('/products', [
+    ProductController::class,
+    'index',
+]);
 
-Route::middleware(['auth:sanctum', 'admin'])
-    ->prefix('admin')
-    ->group(function () {
-        Route::get('/products', [ProductController::class, 'adminIndex']);
-        Route::get('/products/{product}', [ProductController::class, 'adminShow']);
-        Route::post('/products', [ProductController::class, 'store']);
-        Route::put('/products/{product}', [ProductController::class, 'update']);
-        Route::delete('/products/{product}', [ProductController::class, 'destroy']);
-    });
+// Public single product
+Route::get('/products/{product}', [
+    ProductController::class,
+    'show',
+]);
+
 
 /*
 |--------------------------------------------------------------------------
@@ -80,13 +176,12 @@ Route::middleware(['auth:sanctum', 'admin'])
 |--------------------------------------------------------------------------
 */
 
-Route::get('/categories', [CategoryController::class, 'index']);
+// Public categories
+Route::get('/categories', [
+    CategoryController::class,
+    'index',
+]);
 
-Route::middleware(['auth:sanctum', 'admin'])->group(function () {
-    Route::post('/categories', [CategoryController::class, 'store']);
-    Route::put('/categories/{category}', [CategoryController::class, 'update']);
-    Route::delete('/categories/{category}', [CategoryController::class, 'destroy']);
-});
 
 /*
 |--------------------------------------------------------------------------
@@ -97,11 +192,32 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
 Route::middleware('auth:sanctum')
     ->prefix('cart')
     ->group(function () {
-        Route::get('/', [CartController::class, 'index']);
-        Route::post('/add', [CartController::class, 'add']);
-        Route::put('/update', [CartController::class, 'update']);
-        Route::delete('/remove', [CartController::class, 'remove']);
+
+        // Get current cart
+        Route::get('/', [
+            CartController::class,
+            'index',
+        ]);
+
+        // Add item to cart
+        Route::post('/add', [
+            CartController::class,
+            'add',
+        ]);
+
+        // Update cart item
+        Route::put('/update', [
+            CartController::class,
+            'update',
+        ]);
+
+        // Remove cart item
+        Route::delete('/remove', [
+            CartController::class,
+            'remove',
+        ]);
     });
+
 
 /*
 |--------------------------------------------------------------------------
@@ -112,14 +228,32 @@ Route::middleware('auth:sanctum')
 Route::middleware('auth:sanctum')
     ->prefix('orders')
     ->group(function () {
-        Route::post('/', [OrderController::class, 'store']);
-        Route::get('/', [OrderController::class, 'index']);
-        Route::get('/{order}', [OrderController::class, 'show']);
-        Route::put('/{order}/cancel', [OrderController::class, 'cancel']);
+
+        // Create order
+        Route::post('/', [
+            OrderController::class,
+            'store',
+        ]);
+
+        // Current user's orders
+        Route::get('/', [
+            OrderController::class,
+            'index',
+        ]);
+
+        // Single order
+        Route::get('/{order}', [
+            OrderController::class,
+            'show',
+        ]);
+
+        // Cancel order
+        Route::put('/{order}/cancel', [
+            OrderController::class,
+            'cancel',
+        ]);
     });
 
-Route::middleware(['auth:sanctum', 'admin'])
-    ->put('/orders/{order}/status', [OrderController::class, 'updateStatus']);
 
 /*
 |--------------------------------------------------------------------------
@@ -130,10 +264,26 @@ Route::middleware(['auth:sanctum', 'admin'])
 Route::middleware('auth:sanctum')
     ->prefix('payments')
     ->group(function () {
-        Route::post('/checkout', [PaymentController::class, 'checkout']);
-        Route::get('/history', [PaymentController::class, 'history']);
-        Route::get('/{payment}', [PaymentController::class, 'show']);
+
+        // Checkout
+        Route::post('/checkout', [
+            PaymentController::class,
+            'checkout',
+        ]);
+
+        // Payment history
+        Route::get('/history', [
+            PaymentController::class,
+            'history',
+        ]);
+
+        // Single payment
+        Route::get('/{payment}', [
+            PaymentController::class,
+            'show',
+        ]);
     });
+
 
 /*
 |--------------------------------------------------------------------------
@@ -141,24 +291,170 @@ Route::middleware('auth:sanctum')
 |--------------------------------------------------------------------------
 */
 
-Route::post('/reviews', [ReviewController::class, 'store'])
-    ->middleware('auth:sanctum');
+// Create review
+Route::post('/reviews', [
+    ReviewController::class,
+    'store',
+])->middleware('auth:sanctum');
 
-Route::get('/reviews/product/{product}', [ReviewController::class, 'forProduct']);
+// Public product reviews
+Route::get('/reviews/product/{product}', [
+    ReviewController::class,
+    'forProduct',
+]);
 
-Route::middleware(['auth:sanctum', 'admin'])
-    ->put('/reviews/{review}/moderate', [ReviewController::class, 'moderate']);
 
 /*
 |--------------------------------------------------------------------------
 | Admin Routes
 |--------------------------------------------------------------------------
+|
+| All admin-only endpoints are protected by:
+|
+| - auth:sanctum
+| - admin middleware
+|
+| Every admin route uses the /admin prefix.
+|
 */
 
-Route::middleware(['auth:sanctum', 'admin'])
+Route::middleware([
+    'auth:sanctum',
+    'admin',
+])
     ->prefix('admin')
     ->group(function () {
-        Route::get('/dashboard', [AdminController::class, 'dashboard']);
-        Route::get('/reviews', [AdminController::class, 'reviews']);
-        Route::apiResource('banners', AdminBannerController::class);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Dashboard
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get('/dashboard', [
+            AdminController::class,
+            'dashboard',
+        ]);
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Products
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get('/products', [
+            ProductController::class,
+            'adminIndex',
+        ]);
+
+        Route::get('/products/{product}', [
+            ProductController::class,
+            'adminShow',
+        ]);
+
+        Route::post('/products', [
+            ProductController::class,
+            'store',
+        ]);
+
+        Route::put('/products/{product}', [
+            ProductController::class,
+            'update',
+        ]);
+
+        Route::delete('/products/{product}', [
+            ProductController::class,
+            'destroy',
+        ]);
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Categories
+        |--------------------------------------------------------------------------
+        */
+
+        Route::post('/categories', [
+            CategoryController::class,
+            'store',
+        ]);
+
+        Route::put('/categories/{category}', [
+            CategoryController::class,
+            'update',
+        ]);
+
+        Route::delete('/categories/{category}', [
+            CategoryController::class,
+            'destroy',
+        ]);
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Orders
+        |--------------------------------------------------------------------------
+        */
+
+        Route::put('/orders/{order}/status', [
+            OrderController::class,
+            'updateStatus',
+        ]);
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Reviews
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get('/reviews', [
+            AdminController::class,
+            'reviews',
+        ]);
+
+        Route::put('/reviews/{review}/moderate', [
+            ReviewController::class,
+            'moderate',
+        ]);
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Customers
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get('/customers', [
+            AdminController::class,
+            'customers',
+        ]);
+
+        Route::post('/customers', [
+            AdminController::class,
+            'storeCustomer',
+        ]);
+
+        Route::put('/customers/{customer}', [
+            AdminController::class,
+            'updateCustomer',
+        ]);
+
+        Route::delete('/customers/{customer}', [
+            AdminController::class,
+            'destroyCustomer',
+        ]);
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Banners
+        |--------------------------------------------------------------------------
+        */
+
+        Route::apiResource(
+            'banners',
+            AdminBannerController::class
+        );
     });

@@ -20,6 +20,7 @@ export type CategoryType =
   | "accessory";
 
 export interface User {
+  password_set: any;
   id: number;
   name: string;
   email: string;

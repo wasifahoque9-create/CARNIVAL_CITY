@@ -2,7 +2,6 @@ import type {
   Address,
   ApiMessage,
   AuthResponse,
-  Banner,
   Cart,
   Category,
   DashboardStats,
@@ -15,6 +14,18 @@ import type {
   ReviewsResponse,
   User,
 } from "@/types";
+
+type Banner = {
+  id: number;
+  title?: string;
+  subtitle?: string | null;
+  image_path: string | null;
+  link_url?: string | null;
+  is_active?: boolean;
+  sort_order?: number;
+  created_at?: string;
+  updated_at?: string;
+};
 
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ||
@@ -342,6 +353,15 @@ export const authApi = {
    */
   google: (data: { id_token: string }) =>
     api<AuthResponse & { message?: string }>("/auth/google", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  setPassword: (data: {
+    password: string;
+    password_confirmation: string;
+  }) =>
+    api<{ message: string; user: User }>("/auth/set-password", {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -861,6 +881,60 @@ export const adminApi = {
           status,
         }),
       }).then(unwrap),
+  },
+
+  customers: {
+    list: (params?: {
+      page?: number;
+      per_page?: number;
+      search?: string;
+    }) =>
+      api<PaginatedResponse<User>>(
+        `/admin/customers${buildQuery({
+          page: params?.page ?? 1,
+          per_page: params?.per_page ?? 20,
+          search: params?.search,
+        })}`,
+      ),
+
+    create: (data: {
+      name: string;
+      email: string;
+      phone?: string;
+      password: string;
+      password_confirmation: string;
+    }) =>
+      api<{ customer: User }>(
+        "/admin/customers",
+        {
+          method: "POST",
+          body: JSON.stringify(data),
+        },
+      ).then((response) => response.customer),
+
+    update: (
+      id: number,
+      data: {
+        name: string;
+        email: string;
+        phone?: string;
+      },
+    ) =>
+      api<{ customer: User }>(
+        `/admin/customers/${id}`,
+        {
+          method: "PUT",
+          body: JSON.stringify(data),
+        },
+      ).then((response) => response.customer),
+
+    delete: (id: number) =>
+      api<ApiMessage>(
+        `/admin/customers/${id}`,
+        {
+          method: "DELETE",
+        },
+      ),
   },
 
   banners: {

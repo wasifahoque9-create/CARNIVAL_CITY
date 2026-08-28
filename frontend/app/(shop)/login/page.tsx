@@ -18,6 +18,7 @@ import { ApiError } from "@/lib/api";
 
 function LoginForm() {
   const {
+    user,
     login,
     isAuthenticated,
     loading: authLoading,
@@ -50,13 +51,19 @@ function LoginForm() {
   useEffect(() => {
     if (
       !authLoading &&
-      isAuthenticated
+      isAuthenticated &&
+      user
     ) {
-      router.replace(redirect);
+      router.replace(
+        (user as { passwordSet?: boolean }).passwordSet
+          ? redirect
+          : "/set-password"
+      );
     }
   }, [
     authLoading,
     isAuthenticated,
+    user,
     redirect,
     router,
   ]);
@@ -70,9 +77,16 @@ function LoginForm() {
     setError("");
 
     try {
-      await login(email, password);
+      const loggedInUser = await login(
+        email,
+        password
+      );
 
-      router.replace(redirect);
+      router.replace(
+        (loggedInUser as { passwordSet?: boolean }).passwordSet
+          ? redirect
+          : "/set-password"
+      );
     } catch (error) {
       setError(
         error instanceof ApiError

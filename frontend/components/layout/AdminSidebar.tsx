@@ -3,14 +3,25 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import {
+  LayoutDashboard,
+  Package,
+  Image as ImageIcon,
+  Tag,
+  ShoppingCart,
+  Star,
+  Users,
+  Menu,
+} from "lucide-react";
 
 const navItems = [
-  { href: "/admin", label: "Dashboard", icon: "📊" },
-  { href: "/admin/products", label: "Products", icon: "📦" },
-  { href: "/admin/banners", label: "Banners", icon: "🖼️" },
-  { href: "/admin/categories", label: "Categories", icon: "🏷️" },
-  { href: "/admin/orders", label: "Orders", icon: "🛒" },
-  { href: "/admin/reviews", label: "Reviews", icon: "⭐" },
+  { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/admin/products", label: "Products", icon: Package },
+  { href: "/admin/banners", label: "Banners", icon: ImageIcon },
+  { href: "/admin/categories", label: "Categories", icon: Tag },
+  { href: "/admin/orders", label: "Orders", icon: ShoppingCart },
+  { href: "/admin/reviews", label: "Reviews", icon: Star },
+  { href: "/admin/customers", label: "Customers", icon: Users },
 ];
 
 export default function AdminSidebar() {
@@ -26,7 +37,7 @@ export default function AdminSidebar() {
         onClick={() => setMobileOpen(!mobileOpen)}
         aria-label="Toggle admin menu"
       >
-        ☰
+        <Menu size={20} />
       </button>
 
       {/* Sidebar */}
@@ -58,6 +69,8 @@ export default function AdminSidebar() {
                   ? pathname === "/admin"
                   : pathname.startsWith(item.href);
 
+              const Icon = item.icon;
+
               return (
                 <Link
                   key={item.href}
@@ -69,7 +82,7 @@ export default function AdminSidebar() {
                       : "text-white/80 hover:bg-primary-light hover:text-white"
                   }`}
                 >
-                  <span>{item.icon}</span>
+                  <Icon size={18} />
                   <span>{item.label}</span>
                 </Link>
               );
