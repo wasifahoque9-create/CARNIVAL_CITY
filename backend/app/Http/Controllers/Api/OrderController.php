@@ -80,9 +80,6 @@ class OrderController extends Controller
 
         /*
          * Saved shipping address.
-         *
-         * Logged-in Home Delivery-এর জন্য।
-         * Pickup হলে null হতে পারবে।
          */
         $shippingAddressId =
             $request->filled(
@@ -105,9 +102,6 @@ class OrderController extends Controller
 
         /*
          * Guest customer information.
-         *
-         * Logged-in হলে OrderService
-         * এগুলো ignore করবে।
          */
         $guestData = [
             'guest_name' =>
@@ -175,6 +169,21 @@ class OrderController extends Controller
                     $gatewayPayload,
                 );
 
+        /*
+         * Load complete order information before
+         * sending the newly created order response.
+         *
+         * Product images are loaded here so the
+         * frontend can show ordered product pictures.
+         */
+        $order->load([
+            'user',
+            'items.product.images',
+            'items.variant',
+            'shippingAddress',
+            'payment',
+        ]);
+
         return response()->json([
             'message' =>
                 'Order placed successfully.',
@@ -198,13 +207,13 @@ class OrderController extends Controller
         $query =
             Order::query()
                 ->with([
-                    'items.product',
+                    'user',
+                    'items.product.images',
                     'items.variant',
                     'shippingAddress',
                     'payment',
                 ])
                 ->latest();
-
         /*
          * Customer only sees their own orders.
          * Admin sees all orders.
@@ -271,7 +280,8 @@ class OrderController extends Controller
         }
 
         $order->load([
-            'items.product',
+            'user',
+            'items.product.images',
             'items.variant',
             'shippingAddress',
             'payment',
@@ -301,6 +311,14 @@ class OrderController extends Controller
                     $request->user(),
                     $order
                 );
+
+        $order->load([
+            'user',
+            'items.product.images',
+            'items.variant',
+            'shippingAddress',
+            'payment',
+        ]);
 
         return response()->json([
             'message' =>
@@ -336,6 +354,14 @@ class OrderController extends Controller
                     $order,
                     $status
                 );
+
+        $order->load([
+            'user',
+            'items.product.images',
+            'items.variant',
+            'shippingAddress',
+            'payment',
+        ]);
 
         return response()->json([
             'message' =>

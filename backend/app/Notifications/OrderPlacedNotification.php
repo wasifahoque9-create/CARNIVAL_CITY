@@ -3,13 +3,17 @@
 namespace App\Notifications;
 
 use App\Models\Order;
+use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 class OrderPlacedNotification extends Notification
 {
+    use Queueable;
 
-    public function __construct(public Order $order) {}
+    public function __construct(
+        public Order $order
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -18,12 +22,18 @@ class OrderPlacedNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
+        $customerName =
+            $this->order->user?->name
+            ?? $this->order->guest_name
+            ?? 'Customer';
+
         return (new MailMessage)
-            ->subject('Order Confirmation #'.$this->order->id)
-            ->greeting('Hello '.$notifiable->name.'!')
-            ->line('Your order #'.$this->order->id.' has been placed successfully.')
-            ->line('Total: $'.number_format((float) $this->order->total_amount, 2))
-            ->line('Status: '.$this->order->status->value)
-            ->line('Thank you for shopping with ShopSphere!');
+            ->subject(
+                'Order Confirmation #'.$this->order->id
+            )
+            ->view('emails.orders.placed', [
+                'order' => $this->order,
+                'customerName' => $customerName,
+            ]);
     }
 }
