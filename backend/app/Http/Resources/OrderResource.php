@@ -9,35 +9,117 @@ class OrderResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        /*
+        |--------------------------------------------------------------------------
+        | Customer Information
+        |--------------------------------------------------------------------------
+        |
+        | 
+        */
+
+        $isRegistered = !is_null($this->user_id);
+
+        $customerName = $isRegistered
+            ? ($this->user?->name ?? 'Registered Customer')
+            : ($this->guest_name ?? 'Guest Customer');
+
+        $customerEmail = $isRegistered
+            ? ($this->user?->email ?? null)
+            : $this->guest_email;
+
         return [
+            /*
+            |--------------------------------------------------------------------------
+            | Basic Order Information
+            |--------------------------------------------------------------------------
+            */
+
             'id' => $this->id,
+
             'user_id' => $this->user_id,
 
-            'status' => $this->status->value,
-            'total_amount' => $this->total_amount,
+            /*
+            |--------------------------------------------------------------------------
+            | Customer Summary
+            |--------------------------------------------------------------------------
+            |
+            | 
+            |
+            */
 
-            'shipping_address_id' => $this->shipping_address_id,
+            'customer_name' => $customerName,
 
-            // Guest customer information
-            'guest_name' => $this->guest_name,
-            'guest_phone' => $this->guest_phone,
-            'guest_email' => $this->guest_email,
+            'customer_email' => $customerEmail,
 
-            // Guest delivery information
-            'guest_address_line1' => $this->guest_address_line1,
-            'guest_address_line2' => $this->guest_address_line2,
-            'guest_city' => $this->guest_city,
-            'guest_area' => $this->guest_area,
-            'guest_postal_code' => $this->guest_postal_code,
-            'guest_notes' => $this->guest_notes,
-
-            'customer_type' => $this->user_id
+            'customer_type' => $isRegistered
                 ? 'registered'
                 : 'guest',
+
+            /*
+            |--------------------------------------------------------------------------
+            | Order Status
+            |--------------------------------------------------------------------------
+            */
+
+            'status' => $this->status->value,
+
+            /*
+            |--------------------------------------------------------------------------
+            | Order Total
+            |--------------------------------------------------------------------------
+            */
+
+            'total_amount' => $this->total_amount,
+
+            /*
+            |--------------------------------------------------------------------------
+            | Delivery
+            |--------------------------------------------------------------------------
+            */
+
+            'delivery_method' => $this->delivery_method,
+
+            'delivery_charge' => $this->delivery_charge,
+
+            /*
+            |--------------------------------------------------------------------------
+            | Shipping Address
+            |--------------------------------------------------------------------------
+            */
+
+            'shipping_address_id' => $this->shipping_address_id,
 
             'shipping_address' => new AddressResource(
                 $this->whenLoaded('shippingAddress')
             ),
+
+            /*
+            |--------------------------------------------------------------------------
+            | Guest Customer Information
+            |--------------------------------------------------------------------------
+            */
+
+            'guest_name' => $this->guest_name,
+
+            'guest_email' => $this->guest_email,
+
+            'guest_phone' => $this->guest_phone,
+
+            'guest_address_line1' => $this->guest_address_line1,
+
+            'guest_address_line2' => $this->guest_address_line2,
+
+            'guest_city' => $this->guest_city,
+
+            'guest_postal_code' => $this->guest_postal_code,
+
+            'guest_country' => $this->guest_country,
+
+            /*
+            |--------------------------------------------------------------------------
+            | Relations
+            |--------------------------------------------------------------------------
+            */
 
             'items' => OrderItemResource::collection(
                 $this->whenLoaded('items')
@@ -51,7 +133,14 @@ class OrderResource extends JsonResource
                 $this->whenLoaded('user')
             ),
 
+            /*
+            |--------------------------------------------------------------------------
+            | Timestamps
+            |--------------------------------------------------------------------------
+            */
+
             'created_at' => $this->created_at,
+
             'updated_at' => $this->updated_at,
         ];
     }

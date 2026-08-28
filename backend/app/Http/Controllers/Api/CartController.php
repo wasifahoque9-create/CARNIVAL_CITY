@@ -18,7 +18,7 @@ class CartController extends Controller
     ) {}
 
     /**
-     * Get guest token from request header.
+     * Get guest cart token.
      */
     private function getGuestToken(
         Request $request
@@ -33,18 +33,39 @@ class CartController extends Controller
     }
 
     /**
-     * Get cart summary.
+     * Detect authenticated Sanctum user.
+     *
+     * Cart routes are public because guest cart
+     * must also work. Therefore we explicitly
+     * check the Sanctum guard.
+     */
+    private function getUser(
+        Request $request
+    ) {
+        return $request->user(
+            'sanctum'
+        );
+    }
+
+    /**
+     * Get cart.
      */
     public function index(
         Request $request
     ): JsonResponse {
+        $user = $this->getUser(
+            $request
+        );
+
         $guestToken =
-            $this->getGuestToken($request);
+            $this->getGuestToken(
+                $request
+            );
 
         $summary =
             $this->cartService
                 ->getCartSummary(
-                    $request->user(),
+                    $user,
                     $guestToken
                 );
 
@@ -69,39 +90,47 @@ class CartController extends Controller
     }
 
     /**
-     * Add item to cart.
+     * Add item.
      */
     public function add(
         AddToCartRequest $request
     ): JsonResponse {
+        $user = $this->getUser(
+            $request
+        );
+
         $guestToken =
-            $this->getGuestToken($request);
+            $this->getGuestToken(
+                $request
+            );
 
         $cart =
-            $this->cartService->addItem(
-                $request->user(),
-                $guestToken,
-                $request->integer(
-                    'product_id'
-                ),
+            $this->cartService
+                ->addItem(
+                    $user,
+                    $guestToken,
 
-                $request->filled(
-                    'product_variant_id'
-                )
-                    ? $request->integer(
+                    $request->integer(
+                        'product_id'
+                    ),
+
+                    $request->filled(
                         'product_variant_id'
                     )
-                    : null,
+                        ? $request->integer(
+                            'product_variant_id'
+                        )
+                        : null,
 
-                $request->integer(
-                    'quantity'
-                )
-            );
+                    $request->integer(
+                        'quantity'
+                    )
+                );
 
         $summary =
             $this->cartService
                 ->getCartSummary(
-                    $request->user(),
+                    $user,
                     $guestToken
                 );
 
@@ -127,22 +156,30 @@ class CartController extends Controller
     }
 
     /**
-     * Update cart item quantity.
+     * Update quantity.
      */
     public function update(
         UpdateCartRequest $request
     ): JsonResponse {
+        $user = $this->getUser(
+            $request
+        );
+
         $guestToken =
-            $this->getGuestToken($request);
+            $this->getGuestToken(
+                $request
+            );
 
         $cart =
             $this->cartService
                 ->updateItem(
-                    $request->user(),
+                    $user,
                     $guestToken,
+
                     $request->integer(
                         'cart_item_id'
                     ),
+
                     $request->integer(
                         'quantity'
                     )
@@ -151,7 +188,7 @@ class CartController extends Controller
         $summary =
             $this->cartService
                 ->getCartSummary(
-                    $request->user(),
+                    $user,
                     $guestToken
                 );
 
@@ -177,19 +214,26 @@ class CartController extends Controller
     }
 
     /**
-     * Remove one item from cart.
+     * Remove one item.
      */
     public function remove(
         RemoveFromCartRequest $request
     ): JsonResponse {
+        $user = $this->getUser(
+            $request
+        );
+
         $guestToken =
-            $this->getGuestToken($request);
+            $this->getGuestToken(
+                $request
+            );
 
         $cart =
             $this->cartService
                 ->removeItem(
-                    $request->user(),
+                    $user,
                     $guestToken,
+
                     $request->integer(
                         'cart_item_id'
                     )
@@ -198,7 +242,7 @@ class CartController extends Controller
         $summary =
             $this->cartService
                 ->getCartSummary(
-                    $request->user(),
+                    $user,
                     $guestToken
                 );
 
@@ -224,23 +268,30 @@ class CartController extends Controller
     }
 
     /**
-     * Clear all items from cart.
+     * Clear cart.
      */
     public function clear(
         Request $request
     ): JsonResponse {
-        $guestToken =
-            $this->getGuestToken($request);
-
-        $this->cartService->clearCart(
-            $request->user(),
-            $guestToken
+        $user = $this->getUser(
+            $request
         );
+
+        $guestToken =
+            $this->getGuestToken(
+                $request
+            );
+
+        $this->cartService
+            ->clearCart(
+                $user,
+                $guestToken
+            );
 
         $summary =
             $this->cartService
                 ->getCartSummary(
-                    $request->user(),
+                    $user,
                     $guestToken
                 );
 

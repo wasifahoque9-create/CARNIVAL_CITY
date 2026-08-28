@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
+use App\Models\BusinessSetting;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Payment;
@@ -23,18 +24,68 @@ class OrderService
         private PaymentGatewayService $paymentGatewayService,
     ) {}
 
+    /*
+    |--------------------------------------------------------------------------
+    | Place Order
+    |--------------------------------------------------------------------------
+    |
+    | Supports:
+    |
+    | - Logged-in + Home Delivery
+    | - Logged-in + Pickup
+    | - Guest + Home Delivery
+    | - Guest + Pickup
+    |
+    | Important:
+    | Every newly placed order remains PENDING.
+    | Admin must accept the order.
+    |
+    */
+
     public function placeOrder(
         ?User $user,
         ?string $guestToken,
         ?int $shippingAddressId,
         PaymentMethod $method,
+        string $deliveryMethod,
         array $guestData = [],
         array $gatewayPayload = [],
     ): Order {
-        $summary = $this->cartService->getCartSummary(
-            $user,
-            $guestToken
-        );
+        /*
+        |--------------------------------------------------------------------------
+        | Validate Delivery Method
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            ! in_array(
+                $deliveryMethod,
+                [
+                    'home_delivery',
+                    'pickup',
+                ],
+                true
+            )
+        ) {
+            throw ValidationException::withMessages([
+                'delivery_method' => [
+                    'Invalid delivery method.',
+                ],
+            ]);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Cart
+        |--------------------------------------------------------------------------
+        */
+
+        $summary =
+            $this->cartService
+                ->getCartSummary(
+                    $user,
+                    $guestToken
+                );
 
         $cart = $summary['cart'];
 
@@ -46,9 +97,26 @@ class OrderService
             ]);
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | Delivery / Pickup
+        |--------------------------------------------------------------------------
+        */
+
+        $isHomeDelivery =
+            $deliveryMethod ===
+            'home_delivery';
+
         $address = null;
 
-        if ($user) {
+        /*
+         * Logged-in + Home Delivery:
+         * saved address required.
+         */
+        if (
+            $user &&
+            $isHomeDelivery
+        ) {
             if (! $shippingAddressId) {
                 throw ValidationException::withMessages([
                     'shipping_address_id' => [
@@ -57,195 +125,415 @@ class OrderService
                 ]);
             }
 
-            $address = $user
-                ->addresses()
-                ->findOrFail($shippingAddressId);
-        } else {
-            if (! $guestToken) {
-                throw ValidationException::withMessages([
-                    'guest_token' => [
-                        'Guest cart token is required.',
-                    ],
-                ]);
-            }
+            $address =
+                $user
+                    ->addresses()
+                    ->findOrFail(
+                        $shippingAddressId
+                    );
         }
 
-        return DB::transaction(function () use (
-            $user,
-            $guestToken,
-            $guestData,
-            $cart,
-            $summary,
-            $address,
-            $method,
-            $gatewayPayload
+        /*
+         * Guest checkout needs
+         * guest cart token.
+         */
+        if (
+            ! $user &&
+            ! $guestToken
         ) {
-            $order = Order::create([
-                'user_id' => $user?->id,
-
-                'status' =>
-                    OrderStatus::Pending,
-
-                'total_amount' =>
-                    $summary['total'],
-
-                'shipping_address_id' =>
-                    $address?->id,
-
-                'guest_name' =>
-                    $user
-                        ? null
-                        : ($guestData['guest_name'] ?? null),
-
-                'guest_email' =>
-                    $user
-                        ? null
-                        : ($guestData['guest_email'] ?? null),
-
-                'guest_phone' =>
-                    $user
-                        ? null
-                        : ($guestData['guest_phone'] ?? null),
-
-                'guest_address_line1' =>
-                    $user
-                        ? null
-                        : ($guestData['guest_address_line1'] ?? null),
-
-                'guest_address_line2' =>
-                    $user
-                        ? null
-                        : ($guestData['guest_address_line2'] ?? null),
-
-                'guest_city' =>
-                    $user
-                        ? null
-                        : ($guestData['guest_city'] ?? null),
-
-                'guest_postal_code' =>
-                    $user
-                        ? null
-                        : ($guestData['guest_postal_code'] ?? null),
-
-                'guest_country' =>
-                    $user
-                        ? null
-                        : ($guestData['guest_country'] ?? null),
-
-                'guest_token' =>
-                    $user
-                        ? null
-                        : $guestToken,
+            throw ValidationException::withMessages([
+                'guest_token' => [
+                    'Guest cart token is required.',
+                ],
             ]);
+        }
 
-            foreach ($cart->items as $item) {
-                OrderItem::create([
-                    'order_id' =>
-                        $order->id,
+        /*
+        |--------------------------------------------------------------------------
+        | Delivery Charge
+        |--------------------------------------------------------------------------
+        |
+        | Home Delivery:
+        | Business Settings delivery charge.
+        |
+        | Pickup:
+        | Always 0.
+        |
+        */
 
-                    'product_id' =>
-                        $item->product_id,
+        $deliveryCharge = 0.0;
 
-                    'product_variant_id' =>
-                        $item->product_variant_id,
+        if ($isHomeDelivery) {
+            $businessSettings =
+                BusinessSetting::query()
+                    ->first();
 
-                    'quantity' =>
-                        $item->quantity,
-
-                    'unit_price' =>
-                        $item->unitPrice(),
-                ]);
-            }
-
-            $payment = Payment::create([
-                'order_id' =>
-                    $order->id,
-
-                'method' =>
-                    $method,
-
-                'status' =>
-                    PaymentStatus::Pending,
-
-                'amount' =>
-                    $summary['total'],
-            ]);
-
-            if ($method === PaymentMethod::Cod) {
-                $payment->update([
-                    'status' =>
-                        PaymentStatus::Pending,
-
-                    'transaction_ref' =>
-                        'COD-' . $order->id,
-                ]);
-
-                $this->confirmOrder($order);
-            } else {
-                $result =
-                    $this->paymentGatewayService
-                        ->processPayment(
-                            $order,
-                            $summary['total'],
-                            $gatewayPayload
-                        );
-
-                if ($result['success']) {
-                    $payment->update([
-                        'status' =>
-                            PaymentStatus::Paid,
-
-                        'transaction_ref' =>
-                            $result['transaction_ref'],
-                    ]);
-
-                    $this->confirmOrder($order);
-                } else {
-                    $payment->update([
-                        'status' =>
-                            PaymentStatus::Failed,
-                    ]);
-
-                    throw ValidationException::withMessages([
-                        'payment' => [
-                            $result['message']
-                            ?? 'Payment failed.',
-                        ],
-                    ]);
-                }
-            }
-
-            $this->cartService->clearCart(
-                $user,
-                $guestToken
-            );
-
-            $order->load([
-                'items.product',
-                'items.variant',
-                'shippingAddress',
-                'payment',
-            ]);
-
-            if ($user) {
-                $user->notify(
-                    new OrderPlacedNotification(
-                        $order
+            $deliveryCharge =
+                max(
+                    0,
+                    (float) (
+                        $businessSettings
+                            ?->delivery_charge
+                        ?? 0
                     )
                 );
-            }
+        }
 
-            return $order;
-        });
+        /*
+         * Cart total + delivery charge.
+         */
+        $orderTotal =
+            round(
+                (float) $summary['total']
+                +
+                $deliveryCharge,
+                2
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Transaction
+        |--------------------------------------------------------------------------
+        */
+
+        return DB::transaction(
+            function () use (
+                $user,
+                $guestToken,
+                $guestData,
+                $cart,
+                $address,
+                $method,
+                $gatewayPayload,
+                $deliveryMethod,
+                $deliveryCharge,
+                $orderTotal,
+                $isHomeDelivery
+            ) {
+                /*
+                |--------------------------------------------------------------------------
+                | Create Order
+                |--------------------------------------------------------------------------
+                */
+
+                $order =
+                    Order::create([
+                        'user_id' =>
+                            $user?->id,
+
+                        /*
+                         * New order ALWAYS starts pending.
+                         */
+                        'status' =>
+                            OrderStatus::Pending,
+
+                        'total_amount' =>
+                            $orderTotal,
+
+                        /*
+                         * Pickup does not need
+                         * shipping address.
+                         */
+                        'shipping_address_id' =>
+                            $isHomeDelivery
+                                ? $address?->id
+                                : null,
+
+                        'delivery_method' =>
+                            $deliveryMethod,
+
+                        'delivery_charge' =>
+                            $deliveryCharge,
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Guest Customer
+                        |--------------------------------------------------------------------------
+                        */
+
+                        'guest_name' =>
+                            $user
+                                ? null
+                                : (
+                                    $guestData[
+                                        'guest_name'
+                                    ] ?? null
+                                ),
+
+                        'guest_email' =>
+                            $user
+                                ? null
+                                : (
+                                    $guestData[
+                                        'guest_email'
+                                    ] ?? null
+                                ),
+
+                        'guest_phone' =>
+                            $user
+                                ? null
+                                : (
+                                    $guestData[
+                                        'guest_phone'
+                                    ] ?? null
+                                ),
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Guest Address
+                        |--------------------------------------------------------------------------
+                        |
+                        | Only saved for
+                        | Guest + Home Delivery.
+                        |
+                        */
+
+                        'guest_address_line1' =>
+                            $user ||
+                            ! $isHomeDelivery
+                                ? null
+                                : (
+                                    $guestData[
+                                        'guest_address_line1'
+                                    ] ?? null
+                                ),
+
+                        'guest_address_line2' =>
+                            $user ||
+                            ! $isHomeDelivery
+                                ? null
+                                : (
+                                    $guestData[
+                                        'guest_address_line2'
+                                    ] ?? null
+                                ),
+
+                        'guest_city' =>
+                            $user ||
+                            ! $isHomeDelivery
+                                ? null
+                                : (
+                                    $guestData[
+                                        'guest_city'
+                                    ] ?? null
+                                ),
+
+                        'guest_postal_code' =>
+                            $user ||
+                            ! $isHomeDelivery
+                                ? null
+                                : (
+                                    $guestData[
+                                        'guest_postal_code'
+                                    ] ?? null
+                                ),
+
+                        'guest_country' =>
+                            $user ||
+                            ! $isHomeDelivery
+                                ? null
+                                : (
+                                    $guestData[
+                                        'guest_country'
+                                    ] ?? null
+                                ),
+
+                        'guest_token' =>
+                            $user
+                                ? null
+                                : $guestToken,
+                    ]);
+
+                /*
+                |--------------------------------------------------------------------------
+                | Order Items
+                |--------------------------------------------------------------------------
+                */
+
+                foreach (
+                    $cart->items as $item
+                ) {
+                    OrderItem::create([
+                        'order_id' =>
+                            $order->id,
+
+                        'product_id' =>
+                            $item->product_id,
+
+                        'product_variant_id' =>
+                            $item
+                                ->product_variant_id,
+
+                        'quantity' =>
+                            $item->quantity,
+
+                        'unit_price' =>
+                            $item->unitPrice(),
+                    ]);
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | Payment
+                |--------------------------------------------------------------------------
+                */
+
+                $payment =
+                    Payment::create([
+                        'order_id' =>
+                            $order->id,
+
+                        'method' =>
+                            $method,
+
+                        'status' =>
+                            PaymentStatus::Pending,
+
+                        'amount' =>
+                            $orderTotal,
+                    ]);
+
+                /*
+                |--------------------------------------------------------------------------
+                | Cash on Delivery
+                |--------------------------------------------------------------------------
+                |
+                | Payment remains pending.
+                | Order also remains pending.
+                |
+                */
+
+                if (
+                    $method ===
+                    PaymentMethod::Cod
+                ) {
+                    $payment->update([
+                        'status' =>
+                            PaymentStatus::Pending,
+
+                        'transaction_ref' =>
+                            'COD-' .
+                            $order->id,
+                    ]);
+                } else {
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Online Payment
+                    |--------------------------------------------------------------------------
+                    |
+                    | Payment may become PAID.
+                    | Order still stays PENDING
+                    | until admin accepts it.
+                    |
+                    */
+
+                    $result =
+                        $this
+                            ->paymentGatewayService
+                            ->processPayment(
+                                $order,
+                                $orderTotal,
+                                $gatewayPayload
+                            );
+
+                    if (
+                        $result[
+                            'success'
+                        ]
+                    ) {
+                        $payment->update([
+                            'status' =>
+                                PaymentStatus::Paid,
+
+                            'transaction_ref' =>
+                                $result[
+                                    'transaction_ref'
+                                ],
+                        ]);
+                    } else {
+                        $payment->update([
+                            'status' =>
+                                PaymentStatus::Failed,
+                        ]);
+
+                        throw ValidationException::withMessages([
+                            'payment' => [
+                                $result[
+                                    'message'
+                                ]
+                                ??
+                                'Payment failed.',
+                            ],
+                        ]);
+                    }
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | Clear Cart
+                |--------------------------------------------------------------------------
+                */
+
+                $this
+                    ->cartService
+                    ->clearCart(
+                        $user,
+                        $guestToken
+                    );
+
+                /*
+                |--------------------------------------------------------------------------
+                | Load Relations
+                |--------------------------------------------------------------------------
+                */
+
+                $order->load([
+                    'items.product',
+                    'items.variant',
+                    'shippingAddress',
+                    'payment',
+                ]);
+
+                /*
+                 * Only registered users
+                 * have account notifications.
+                 */
+                if ($user) {
+                    $user->notify(
+                        new OrderPlacedNotification(
+                            $order
+                        )
+                    );
+                }
+
+                return $order;
+            }
+        );
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Customer Cancel Order
+    |--------------------------------------------------------------------------
+    |
+    | Pending:
+    | no stock was deducted.
+    |
+    | Confirmed/Accepted:
+    | stock was deducted,
+    | therefore restore it.
+    |
+    */
 
     public function cancelOrder(
         User $user,
         Order $order
     ): Order {
         if (
-            $order->user_id !== $user->id
-            && ! $user->isAdmin()
+            $order->user_id !==
+                $user->id
+            &&
+            ! $user->isAdmin()
         ) {
             abort(
                 403,
@@ -254,7 +542,8 @@ class OrderService
         }
 
         if (
-            ! $order->status
+            ! $order
+                ->status
                 ->canBeCancelledByCustomer()
         ) {
             throw ValidationException::withMessages([
@@ -265,27 +554,30 @@ class OrderService
         }
 
         return DB::transaction(
-            function () use ($order, $user) {
+            function () use (
+                $order,
+                $user
+            ) {
                 $previousStatus =
                     $order->status;
+
+                /*
+                 * Only confirmed/accepted order
+                 * has deducted inventory.
+                 */
+                if (
+                    $previousStatus ===
+                    OrderStatus::Confirmed
+                ) {
+                    $this->restoreStock(
+                        $order
+                    );
+                }
 
                 $order->update([
                     'status' =>
                         OrderStatus::Cancelled,
                 ]);
-
-                $this->restoreStock($order);
-
-                if (
-                    $order->payment
-                    && $order->payment->status
-                        === PaymentStatus::Paid
-                ) {
-                    $order->payment->update([
-                        'status' =>
-                            PaymentStatus::Refunded,
-                    ]);
-                }
 
                 $order->load([
                     'items.product',
@@ -306,44 +598,135 @@ class OrderService
         );
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Admin Update Status
+    |--------------------------------------------------------------------------
+    |
+    | Allowed flow:
+    |
+    | Pending
+    | → Confirmed/Accepted
+    | → Shipped
+    | → Delivered
+    |
+    | Pending → Cancelled
+    | Confirmed → Cancelled
+    |
+    */
+
     public function updateStatus(
         Order $order,
         OrderStatus $status
     ): Order {
         return DB::transaction(
-            function () use ($order, $status) {
+            function () use (
+                $order,
+                $status
+            ) {
+                /*
+                 * Refresh latest status.
+                 */
+                $order->refresh();
+
                 $previousStatus =
                     $order->status;
 
+                /*
+                 * Same status:
+                 * simply return order.
+                 */
                 if (
-                    $status ===
-                    OrderStatus::Cancelled
+                    $previousStatus ===
+                    $status
                 ) {
-                    if (
-                        ! $order->status
-                            ->isPreShipment()
-                    ) {
-                        throw ValidationException::withMessages([
-                            'status' => [
-                                'Cannot cancel an order that has already shipped.',
-                            ],
-                        ]);
-                    }
-
-                    $this->restoreStock($order);
+                    return $order->load([
+                        'items.product',
+                        'items.variant',
+                        'shippingAddress',
+                        'payment',
+                        'user',
+                    ]);
                 }
 
+                /*
+                |--------------------------------------------------------------------------
+                | Validate Status Transition
+                |--------------------------------------------------------------------------
+                */
+
                 if (
+                    ! $previousStatus
+                        ->canTransitionTo(
+                            $status
+                        )
+                ) {
+                    throw ValidationException::withMessages([
+                        'status' => [
+                            sprintf(
+                                'Order cannot move from %s to %s.',
+                                $previousStatus
+                                    ->label(),
+                                $status
+                                    ->label()
+                            ),
+                        ],
+                    ]);
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | Pending → Accepted
+                |--------------------------------------------------------------------------
+                |
+                | Inventory is deducted ONLY
+                | when admin accepts order.
+                |
+                */
+
+                if (
+                    $previousStatus ===
+                        OrderStatus::Pending
+                    &&
                     $status ===
                         OrderStatus::Confirmed
-                    && $order->status ===
-                        OrderStatus::Pending
                 ) {
-                    $this->decrementStock($order);
+                    $this->decrementStock(
+                        $order
+                    );
                 }
 
+                /*
+                |--------------------------------------------------------------------------
+                | Accepted → Cancelled
+                |--------------------------------------------------------------------------
+                |
+                | Accepted order already deducted
+                | stock, so restore it.
+                |
+                */
+
+                if (
+                    $previousStatus ===
+                        OrderStatus::Confirmed
+                    &&
+                    $status ===
+                        OrderStatus::Cancelled
+                ) {
+                    $this->restoreStock(
+                        $order
+                    );
+                }
+
+                /*
+                 * Pending → Cancelled:
+                 * nothing to restore because stock
+                 * was never deducted.
+                 */
+
                 $order->update([
-                    'status' => $status,
+                    'status' =>
+                        $status,
                 ]);
 
                 $order->load([
@@ -354,13 +737,18 @@ class OrderService
                     'user',
                 ]);
 
+                /*
+                 * Notify registered customer.
+                 */
                 if ($order->user) {
-                    $order->user->notify(
-                        new OrderStatusChangedNotification(
-                            $order,
-                            $previousStatus->value
-                        )
-                    );
+                    $order
+                        ->user
+                        ->notify(
+                            new OrderStatusChangedNotification(
+                                $order,
+                                $previousStatus->value
+                            )
+                        );
                 }
 
                 return $order;
@@ -368,9 +756,22 @@ class OrderService
         );
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Confirm Order
+    |--------------------------------------------------------------------------
+    |
+    | Kept for compatibility with other code.
+    |
+    | New checkout does NOT call this automatically.
+    |
+    */
+
     public function confirmOrder(
         Order $order
     ): void {
+        $order->refresh();
+
         if (
             $order->status ===
             OrderStatus::Confirmed
@@ -378,13 +779,39 @@ class OrderService
             return;
         }
 
-        $this->decrementStock($order);
+        if (
+            $order->status !==
+            OrderStatus::Pending
+        ) {
+            throw ValidationException::withMessages([
+                'status' => [
+                    'Only a pending order can be accepted.',
+                ],
+            ]);
+        }
 
-        $order->update([
-            'status' =>
-                OrderStatus::Confirmed,
-        ]);
+        DB::transaction(
+            function () use ($order) {
+                $this->decrementStock(
+                    $order
+                );
+
+                $order->update([
+                    'status' =>
+                        OrderStatus::Confirmed,
+                ]);
+            }
+        );
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Decrement Stock
+    |--------------------------------------------------------------------------
+    |
+    | Happens when Admin accepts order.
+    |
+    */
 
     private function decrementStock(
         Order $order
@@ -394,41 +821,95 @@ class OrderService
             'items.variant'
         );
 
-        foreach ($order->items as $item) {
+        foreach (
+            $order->items as $item
+        ) {
             if (
                 $item->product_variant_id
-                && $item->variant
+                &&
+                $item->variant
             ) {
-                ProductVariant::where(
-                    'id',
-                    $item->variant->id
-                )
-                    ->where(
-                        'stock_qty',
-                        '>=',
-                        $item->quantity
-                    )
-                    ->decrement(
-                        'stock_qty',
-                        $item->quantity
-                    );
+                $updated =
+                    ProductVariant::query()
+                        ->where(
+                            'id',
+                            $item
+                                ->variant
+                                ->id
+                        )
+                        ->where(
+                            'stock_qty',
+                            '>=',
+                            $item
+                                ->quantity
+                        )
+                        ->decrement(
+                            'stock_qty',
+                            $item
+                                ->quantity
+                        );
+
+                if ($updated === 0) {
+                    throw ValidationException::withMessages([
+                        'stock' => [
+                            'Insufficient stock for ' .
+                            (
+                                $item->product
+                                    ?->name
+                                ??
+                                'one of the ordered products'
+                            ) .
+                            '.',
+                        ],
+                    ]);
+                }
             } else {
-                Product::where(
-                    'id',
-                    $item->product_id
-                )
-                    ->where(
-                        'stock_qty',
-                        '>=',
-                        $item->quantity
-                    )
-                    ->decrement(
-                        'stock_qty',
-                        $item->quantity
-                    );
+                $updated =
+                    Product::query()
+                        ->where(
+                            'id',
+                            $item
+                                ->product_id
+                        )
+                        ->where(
+                            'stock_qty',
+                            '>=',
+                            $item
+                                ->quantity
+                        )
+                        ->decrement(
+                            'stock_qty',
+                            $item
+                                ->quantity
+                        );
+
+                if ($updated === 0) {
+                    throw ValidationException::withMessages([
+                        'stock' => [
+                            'Insufficient stock for ' .
+                            (
+                                $item->product
+                                    ?->name
+                                ??
+                                'one of the ordered products'
+                            ) .
+                            '.',
+                        ],
+                    ]);
+                }
             }
         }
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Restore Stock
+    |--------------------------------------------------------------------------
+    |
+    | Used when an accepted order
+    | is cancelled before shipping.
+    |
+    */
 
     private function restoreStock(
         Order $order
@@ -438,27 +919,37 @@ class OrderService
             'items.variant'
         );
 
-        foreach ($order->items as $item) {
+        foreach (
+            $order->items as $item
+        ) {
             if (
                 $item->product_variant_id
-                && $item->variant
+                &&
+                $item->variant
             ) {
-                ProductVariant::where(
-                    'id',
-                    $item->variant->id
-                )
+                ProductVariant::query()
+                    ->where(
+                        'id',
+                        $item
+                            ->variant
+                            ->id
+                    )
                     ->increment(
                         'stock_qty',
-                        $item->quantity
+                        $item
+                            ->quantity
                     );
             } else {
-                Product::where(
-                    'id',
-                    $item->product_id
-                )
+                Product::query()
+                    ->where(
+                        'id',
+                        $item
+                            ->product_id
+                    )
                     ->increment(
                         'stock_qty',
-                        $item->quantity
+                        $item
+                            ->quantity
                     );
             }
         }

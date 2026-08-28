@@ -16,6 +16,9 @@ class Order extends Model
         'total_amount',
         'shipping_address_id',
 
+        'delivery_method',
+        'delivery_charge',
+
         'guest_name',
         'guest_email',
         'guest_phone',
@@ -31,6 +34,7 @@ class Order extends Model
     {
         return [
             'total_amount' => 'decimal:2',
+            'delivery_charge' => 'decimal:2',
             'status' => OrderStatus::class,
         ];
     }

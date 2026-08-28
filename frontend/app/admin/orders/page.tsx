@@ -1,91 +1,358 @@
 "use client";
 
 import {
-  Fragment,
+  useCallback,
   useEffect,
   useState,
 } from "react";
+
 import Badge, {
   orderStatusVariant,
 } from "@/components/ui/Badge";
 import Card from "@/components/ui/Card";
 import Select from "@/components/ui/Select";
 import { PageLoader } from "@/components/ui/Spinner";
+
 import {
   adminApi,
-  formatPrice,
   formatOrderNumber,
+  formatPrice,
 } from "@/lib/api";
-import type { Order } from "@/types";
+
+import type {
+  Order,
+  OrderStatus,
+} from "@/types";
+
+/*
+|--------------------------------------------------------------------------
+| Status Filter Options
+|--------------------------------------------------------------------------
+*/
 
 const statusOptions = [
-  { value: "", label: "All Statuses" },
-  { value: "pending", label: "Pending" },
-  { value: "confirmed", label: "Confirmed" },
-  { value: "shipped", label: "Shipped" },
-  { value: "delivered", label: "Delivered" },
-  { value: "cancelled", label: "Cancelled" },
+  {
+    value: "",
+    label: "All Statuses",
+  },
+  {
+    value: "pending",
+    label: "Pending",
+  },
+  {
+    value: "confirmed",
+    label: "Accepted",
+  },
+  {
+    value: "shipped",
+    label: "Shipped",
+  },
+  {
+    value: "delivered",
+    label: "Delivered",
+  },
+  {
+    value: "cancelled",
+    label: "Cancelled",
+  },
 ];
 
-const updateOptions = statusOptions.filter(
-  (option) => option.value,
-);
+/*
+|--------------------------------------------------------------------------
+| Status Label
+|--------------------------------------------------------------------------
+*/
 
-export default function AdminOrdersPage() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [filterStatus, setFilterStatus] =
-    useState("");
-  const [loading, setLoading] =
-    useState(true);
-  const [updatingId, setUpdatingId] =
-    useState<number | null>(null);
+function getStatusLabel(
+  status: OrderStatus,
+): string {
+  switch (status) {
+    case "pending":
+      return "Pending";
 
-  const [expandedId, setExpandedId] =
-    useState<number | null>(null);
+    case "confirmed":
+      return "Accepted";
 
-  async function loadOrders() {
-    setLoading(true);
+    case "shipped":
+      return "Shipped";
 
-    try {
-      const res = await adminApi.orders.list(
-        1,
-        filterStatus || undefined,
-      );
+    case "delivered":
+      return "Delivered";
 
-      setOrders(res.data);
-    } finally {
-      setLoading(false);
+    case "cancelled":
+      return "Cancelled";
+
+    default:
+      return status;
+  }
+}
+
+/*
+|--------------------------------------------------------------------------
+| Delivery Label
+|--------------------------------------------------------------------------
+*/
+
+function getDeliveryLabel(
+  order: Order,
+): string {
+  return order.delivery_method ===
+    "pickup"
+    ? "Store Pickup"
+    : "Home Delivery";
+}
+
+/*
+|--------------------------------------------------------------------------
+| Error Message
+|--------------------------------------------------------------------------
+*/
+
+function getErrorMessage(
+  error: unknown,
+): string {
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error
+  ) {
+    const message = (
+      error as {
+        message?: unknown;
+      }
+    ).message;
+
+    if (
+      typeof message === "string"
+    ) {
+      return message;
     }
   }
 
-  useEffect(() => {
-    void loadOrders();
-  }, [filterStatus]);
+  return "Something went wrong. Please try again.";
+}
 
-  async function handleStatusChange(
-    orderId: number,
-    status: string,
+/*
+|--------------------------------------------------------------------------
+| Customer Name
+|--------------------------------------------------------------------------
+|
+| Backend customer_name থাকলে সেটাই ব্যবহার করবে।
+| Fallback হিসেবে guest_name অথবা user.name ব্যবহার করবে।
+|
+*/
+
+function getCustomerName(
+  order: Order,
+): string {
+  if (order.customer_name) {
+    return order.customer_name;
+  }
+
+  if (order.user?.name) {
+    return order.user.name;
+  }
+
+  if (order.guest_name) {
+    return order.guest_name;
+  }
+
+  return "Unknown Customer";
+}
+
+/*
+|--------------------------------------------------------------------------
+| Customer Email
+|--------------------------------------------------------------------------
+*/
+
+function getCustomerEmail(
+  order: Order,
+): string | null {
+  if (order.customer_email) {
+    return order.customer_email;
+  }
+
+  if (order.user?.email) {
+    return order.user.email;
+  }
+
+  if (order.guest_email) {
+    return order.guest_email;
+  }
+
+  return null;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Customer Type
+|--------------------------------------------------------------------------
+*/
+
+function getCustomerType(
+  order: Order,
+): "guest" | "registered" {
+  if (
+    order.customer_type ===
+    "registered"
   ) {
-    setUpdatingId(orderId);
+    return "registered";
+  }
 
-    try {
-      const updated =
-        await adminApi.orders.updateStatus(
-          orderId,
-          status,
+  if (
+    order.customer_type ===
+    "guest"
+  ) {
+    return "guest";
+  }
+
+  return order.user_id
+    ? "registered"
+    : "guest";
+}
+
+/*
+|--------------------------------------------------------------------------
+| Admin Orders Page
+|--------------------------------------------------------------------------
+*/
+
+export default function AdminOrdersPage() {
+  const [
+    orders,
+    setOrders,
+  ] = useState<Order[]>([]);
+
+  const [
+    filterStatus,
+    setFilterStatus,
+  ] = useState("");
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
+
+  const [
+    updatingId,
+    setUpdatingId,
+  ] = useState<number | null>(
+    null,
+  );
+
+  const [
+    error,
+    setError,
+  ] = useState("");
+
+  /*
+  |--------------------------------------------------------------------------
+  | Load Orders
+  |--------------------------------------------------------------------------
+  */
+
+  const loadOrders =
+    useCallback(async () => {
+      try {
+        setLoading(true);
+        setError("");
+
+        const response =
+          await adminApi.orders.list(
+            1,
+            filterStatus ||
+              undefined,
+          );
+
+        setOrders(
+          response.data ?? [],
+        );
+      } catch (error) {
+        console.error(
+          "Unable to load orders:",
+          error,
         );
 
-      setOrders((previous) =>
-        previous.map((order) =>
-          order.id === orderId
-            ? updated
-            : order,
+        setError(
+          getErrorMessage(error),
+        );
+      } finally {
+        setLoading(false);
+      }
+    }, [filterStatus]);
+
+  useEffect(() => {
+    void loadOrders();
+  }, [loadOrders]);
+
+  /*
+  |--------------------------------------------------------------------------
+  | Update Status
+  |--------------------------------------------------------------------------
+  */
+
+  async function handleStatusChange(
+    order: Order,
+    status: OrderStatus,
+  ) {
+    /*
+     * Ask before cancelling.
+     */
+    if (
+      status === "cancelled"
+    ) {
+      const confirmed =
+        window.confirm(
+          `Cancel ${formatOrderNumber(
+            order,
+          )}?`,
+        );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    try {
+      setUpdatingId(order.id);
+      setError("");
+
+      const updated =
+        await adminApi.orders
+          .updateStatus(
+            order.id,
+            status,
+          );
+
+      setOrders((current) =>
+        current.map(
+          (currentOrder) =>
+            currentOrder.id ===
+            order.id
+              ? updated
+              : currentOrder,
         ),
+      );
+    } catch (error) {
+      console.error(
+        "Unable to update order status:",
+        error,
+      );
+
+      setError(
+        getErrorMessage(error),
       );
     } finally {
       setUpdatingId(null);
     }
   }
+
+  /*
+  |--------------------------------------------------------------------------
+  | Loading
+  |--------------------------------------------------------------------------
+  */
 
   if (loading) {
     return <PageLoader />;
@@ -93,51 +360,62 @@ export default function AdminOrdersPage() {
 
   return (
     <div>
-      {/* Header */}
+      {/* Page Header */}
+
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold sm:text-3xl">
+          <h1 className="text-2xl font-bold text-[#121358] sm:text-3xl">
             Orders
           </h1>
 
-          <p className="text-muted">
-            Manage registered and guest customer
-            orders
+          <p className="mt-1 text-sm text-muted">
+            Manage customer orders
+            and delivery progress.
           </p>
         </div>
 
         <Select
           value={filterStatus}
           onChange={(event) =>
-            setFilterStatus(event.target.value)
+            setFilterStatus(
+              event.target.value,
+            )
           }
           options={statusOptions}
           className="w-full sm:w-48"
         />
       </div>
 
+      {/* Error */}
+
+      {error && (
+        <div className="mt-6 flex items-center justify-between gap-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+          <span>{error}</span>
+
+          <button
+            type="button"
+            onClick={() =>
+              setError("")
+            }
+            className="shrink-0 rounded-lg bg-red-100 px-3 py-1.5 text-xs font-bold hover:bg-red-200"
+          >
+            Close
+          </button>
+        </div>
+      )}
+
+      {/* Orders */}
+
       <Card
         className="mt-8 overflow-hidden"
         padding="none"
       >
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full min-w-[1050px] text-left text-sm">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-4 py-3 font-medium">
                   Order
-                </th>
-
-                <th className="px-4 py-3 font-medium">
-                  Customer
-                </th>
-
-                <th className="px-4 py-3 font-medium">
-                  Phone
-                </th>
-
-                <th className="px-4 py-3 font-medium">
-                  Location
                 </th>
 
                 <th className="px-4 py-3 font-medium">
@@ -146,6 +424,14 @@ export default function AdminOrdersPage() {
 
                 <th className="px-4 py-3 font-medium">
                   Status
+                </th>
+
+                <th className="px-4 py-3 font-medium">
+                  Delivery
+                </th>
+
+                <th className="px-4 py-3 font-medium">
+                  Delivery Charge
                 </th>
 
                 <th className="px-4 py-3 font-medium">
@@ -159,469 +445,345 @@ export default function AdminOrdersPage() {
             </thead>
 
             <tbody>
-              {orders.map((order) => {
-                const customerName =
-                  order.user?.name ??
-                  order.guest_name ??
-                  "Guest Customer";
+              {orders.map(
+                (order) => {
+                  const updating =
+                    updatingId ===
+                    order.id;
 
-                const customerPhone =
-                  order.user?.phone ??
-                  order.guest_phone ??
-                  "—";
+                  const customerName =
+                    getCustomerName(
+                      order,
+                    );
 
-                const customerEmail =
-                  order.user?.email ??
-                  order.guest_email ??
-                  "—";
+                  const customerEmail =
+                    getCustomerEmail(
+                      order,
+                    );
 
-                const addressLine1 =
-                  order.shipping_address?.line1 ??
-                  order.guest_address_line1 ??
-                  "—";
+                  const customerType =
+                    getCustomerType(
+                      order,
+                    );
 
-                const addressLine2 =
-                  order.shipping_address?.line2 ??
-                  order.guest_address_line2 ??
-                  "";
+                  return (
+                    <tr
+                      key={order.id}
+                      className="border-t border-border align-middle"
+                    >
+                      {/* Order + Customer */}
 
-                const city =
-                  order.shipping_address?.city ??
-                  order.guest_city ??
-                  "—";
-
-                const area =
-                  order.guest_area ?? "";
-
-                const postalCode =
-                  order.shipping_address
-                    ?.postal_code ??
-                  order.guest_postal_code ??
-                  "—";
-
-                const customerType =
-                  order.customer_type ??
-                  (order.user_id
-                    ? "registered"
-                    : "guest");
-
-                const isExpanded =
-                  expandedId === order.id;
-
-                return (
-                  <Fragment key={order.id}>
-                    {/* Main order row */}
-                    <tr className="border-t border-border align-top">
-                      {/* Order */}
-                      <td className="px-4 py-4 font-medium">
-                        {formatOrderNumber(order)}
-                      </td>
-
-                      {/* Customer */}
                       <td className="px-4 py-4">
-                        <div className="font-semibold text-gray-900">
-                          {customerName}
-                        </div>
+                        <div className="min-w-[180px]">
+                          {/* Order Number */}
 
-                        <span
-                          className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                            customerType === "guest"
-                              ? "bg-amber-100 text-amber-700"
-                              : "bg-blue-100 text-blue-700"
-                          }`}
-                        >
-                          {customerType === "guest"
-                            ? "Guest"
-                            : "Registered"}
-                        </span>
-                      </td>
+                          <p className="font-black text-[#121358]">
+                            {formatOrderNumber(
+                              order,
+                            )}
+                          </p>
 
-                      {/* Phone */}
-                      <td className="px-4 py-4">
-                        <div className="font-medium">
-                          {customerPhone}
-                        </div>
+                          {/* Customer Name */}
 
-                        {customerEmail !== "—" && (
-                          <div className="mt-1 max-w-[180px] truncate text-xs text-muted">
-                            {customerEmail}
+                          <p className="mt-1.5 text-sm font-bold text-gray-800">
+                            {customerName}
+                          </p>
+
+                          {/* Customer Type */}
+
+                          <div className="mt-1">
+                            {customerType ===
+                            "registered" ? (
+                              <span className="inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                                Registered
+                              </span>
+                            ) : (
+                              <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                                Guest
+                              </span>
+                            )}
                           </div>
-                        )}
-                      </td>
 
-                      {/* Location */}
-                      <td className="px-4 py-4">
-                        <div className="font-medium">
-                          {area || city}
-                        </div>
+                          {/* Customer Email */}
 
-                        {area &&
-                          city &&
-                          city !== "—" && (
-                            <div className="mt-1 text-xs text-muted">
-                              {city}
-                            </div>
+                          {customerEmail && (
+                            <p
+                              className="mt-1 max-w-[190px] truncate text-xs text-muted"
+                              title={
+                                customerEmail
+                              }
+                            >
+                              {customerEmail}
+                            </p>
                           )}
+                        </div>
                       </td>
 
                       {/* Date */}
-                      <td className="whitespace-nowrap px-4 py-4 text-muted">
+
+                      <td className="px-4 py-4 text-muted">
                         {new Date(
                           order.created_at,
                         ).toLocaleDateString()}
                       </td>
 
                       {/* Status */}
+
                       <td className="px-4 py-4">
                         <Badge
                           variant={orderStatusVariant(
                             order.status,
                           )}
                         >
-                          {order.status}
+                          {getStatusLabel(
+                            order.status,
+                          )}
                         </Badge>
                       </td>
 
+                      {/* Delivery Method */}
+
+                      <td className="px-4 py-4">
+                        <div>
+                          <p className="font-semibold text-[#121358]">
+                            {getDeliveryLabel(
+                              order,
+                            )}
+                          </p>
+
+                          {order.delivery_method ===
+                            "pickup" && (
+                            <p className="mt-1 text-xs text-emerald-600">
+                              No delivery charge
+                            </p>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Delivery Charge */}
+
+                      <td className="px-4 py-4">
+                        {Number(
+                          order.delivery_charge ??
+                            0,
+                        ) > 0 ? (
+                          <span className="font-semibold text-[#121358]">
+                            {formatPrice(
+                              Number(
+                                order.delivery_charge,
+                              ),
+                            )}
+                          </span>
+                        ) : (
+                          <span className="font-semibold text-emerald-600">
+                            Free
+                          </span>
+                        )}
+                      </td>
+
                       {/* Total */}
-                      <td className="whitespace-nowrap px-4 py-4 font-semibold text-secondary">
+
+                      <td className="px-4 py-4 font-black text-secondary">
                         {formatPrice(
-                          order.total_amount,
+                          Number(
+                            order.total_amount,
+                          ),
                         )}
                       </td>
 
                       {/* Actions */}
+
                       <td className="px-4 py-4">
-                        <div className="flex min-w-[170px] flex-col gap-2">
-                          <select
-                            value={order.status}
-                            disabled={
-                              updatingId ===
-                              order.id
-                            }
-                            onChange={(event) =>
-                              void handleStatusChange(
-                                order.id,
-                                event.target.value,
-                              )
-                            }
-                            className="rounded-lg border border-border px-2 py-1.5 text-sm"
-                          >
-                            {updateOptions.map(
-                              (option) => (
-                                <option
-                                  key={
-                                    option.value
-                                  }
-                                  value={
-                                    option.value
-                                  }
-                                >
-                                  {option.label}
-                                </option>
-                              ),
-                            )}
-                          </select>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setExpandedId(
-                                isExpanded
-                                  ? null
-                                  : order.id,
-                              )
-                            }
-                            className="rounded-lg bg-[#121358] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#222475]"
-                          >
-                            {isExpanded
-                              ? "Hide Details"
-                              : "View Details"}
-                          </button>
-
-                          {updatingId ===
-                            order.id && (
-                            <span className="text-xs text-muted">
-                              Saving...
-                            </span>
-                          )}
-                        </div>
+                        <OrderActions
+                          order={order}
+                          updating={
+                            updating
+                          }
+                          onStatusChange={
+                            handleStatusChange
+                          }
+                        />
                       </td>
                     </tr>
-
-                    {/* Expanded full information */}
-                    {isExpanded && (
-                      <tr className="border-t border-border bg-gray-50/70">
-                        <td
-                          colSpan={8}
-                          className="px-5 py-6"
-                        >
-                          <div className="grid gap-6 lg:grid-cols-3">
-                            {/* Customer Information */}
-                            <section className="rounded-xl border border-border bg-white p-5">
-                              <h3 className="text-sm font-bold text-gray-900">
-                                Customer Information
-                              </h3>
-
-                              <dl className="mt-4 space-y-3 text-sm">
-                                <DetailRow
-                                  label="Customer Type"
-                                  value={
-                                    customerType ===
-                                    "guest"
-                                      ? "Guest Customer"
-                                      : "Registered Customer"
-                                  }
-                                />
-
-                                <DetailRow
-                                  label="Full Name"
-                                  value={
-                                    customerName
-                                  }
-                                />
-
-                                <DetailRow
-                                  label="Phone"
-                                  value={
-                                    customerPhone
-                                  }
-                                />
-
-                                <DetailRow
-                                  label="Email"
-                                  value={
-                                    customerEmail
-                                  }
-                                />
-                              </dl>
-                            </section>
-
-                            {/* Delivery Information */}
-                            <section className="rounded-xl border border-border bg-white p-5">
-                              <h3 className="text-sm font-bold text-gray-900">
-                                Delivery Address
-                              </h3>
-
-                              <dl className="mt-4 space-y-3 text-sm">
-                                <DetailRow
-                                  label="Address Line 1"
-                                  value={
-                                    addressLine1
-                                  }
-                                />
-
-                                <DetailRow
-                                  label="Address Line 2"
-                                  value={
-                                    addressLine2 ||
-                                    "—"
-                                  }
-                                />
-
-                                <DetailRow
-                                  label="Area"
-                                  value={
-                                    area || "—"
-                                  }
-                                />
-
-                                <DetailRow
-                                  label="City"
-                                  value={city}
-                                />
-
-                                <DetailRow
-                                  label="Postal Code"
-                                  value={
-                                    postalCode
-                                  }
-                                />
-                              </dl>
-                            </section>
-
-                            {/* Order Information */}
-                            <section className="rounded-xl border border-border bg-white p-5">
-                              <h3 className="text-sm font-bold text-gray-900">
-                                Order Information
-                              </h3>
-
-                              <dl className="mt-4 space-y-3 text-sm">
-                                <DetailRow
-                                  label="Order"
-                                  value={formatOrderNumber(
-                                    order,
-                                  )}
-                                />
-
-                                <DetailRow
-                                  label="Status"
-                                  value={
-                                    order.status
-                                  }
-                                />
-
-                                <DetailRow
-                                  label="Payment Method"
-                                  value={
-                                    order.payment
-                                      ?.method ??
-                                    "—"
-                                  }
-                                />
-
-                                <DetailRow
-                                  label="Total"
-                                  value={formatPrice(
-                                    order.total_amount,
-                                  )}
-                                />
-
-                                <DetailRow
-                                  label="Order Date"
-                                  value={new Date(
-                                    order.created_at,
-                                  ).toLocaleString()}
-                                />
-                              </dl>
-                            </section>
-                          </div>
-
-                          {/* Order Items */}
-                          <section className="mt-6 rounded-xl border border-border bg-white p-5">
-                            <h3 className="text-sm font-bold text-gray-900">
-                              Order Items
-                            </h3>
-
-                            {order.items?.length ? (
-                              <div className="mt-4 overflow-x-auto">
-                                <table className="w-full text-sm">
-                                  <thead className="bg-gray-50">
-                                    <tr>
-                                      <th className="px-3 py-2 text-left">
-                                        Product
-                                      </th>
-
-                                      <th className="px-3 py-2 text-left">
-                                        Variant
-                                      </th>
-
-                                      <th className="px-3 py-2 text-left">
-                                        Quantity
-                                      </th>
-
-                                      <th className="px-3 py-2 text-left">
-                                        Unit Price
-                                      </th>
-
-                                      <th className="px-3 py-2 text-left">
-                                        Line Total
-                                      </th>
-                                    </tr>
-                                  </thead>
-
-                                  <tbody>
-                                    {order.items.map(
-                                      (item) => (
-                                        <tr
-                                          key={
-                                            item.id
-                                          }
-                                          className="border-t border-border"
-                                        >
-                                          <td className="px-3 py-3 font-medium">
-                                            {item
-                                              .product
-                                              ?.name ??
-                                              `Product #${item.product_id}`}
-                                          </td>
-
-                                          <td className="px-3 py-3 text-muted">
-                                            {item.variant
-                                              ? `${item.variant.variant_name}: ${item.variant.variant_value}`
-                                              : "—"}
-                                          </td>
-
-                                          <td className="px-3 py-3">
-                                            {
-                                              item.quantity
-                                            }
-                                          </td>
-
-                                          <td className="px-3 py-3">
-                                            {formatPrice(
-                                              item.unit_price,
-                                            )}
-                                          </td>
-
-                                          <td className="px-3 py-3 font-semibold text-secondary">
-                                            {formatPrice(
-                                              item.line_total,
-                                            )}
-                                          </td>
-                                        </tr>
-                                      ),
-                                    )}
-                                  </tbody>
-                                </table>
-                              </div>
-                            ) : (
-                              <p className="mt-3 text-sm text-muted">
-                                No order items
-                                available.
-                              </p>
-                            )}
-                          </section>
-
-                          {/* Customer notes */}
-                          {order.guest_notes && (
-                            <section className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-5">
-                              <h3 className="text-sm font-bold text-amber-900">
-                                Customer Notes
-                              </h3>
-
-                              <p className="mt-2 whitespace-pre-wrap text-sm text-amber-800">
-                                {
-                                  order.guest_notes
-                                }
-                              </p>
-                            </section>
-                          )}
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
+                  );
+                },
+              )}
             </tbody>
           </table>
         </div>
 
         {orders.length === 0 && (
-          <p className="p-8 text-center text-muted">
-            No orders found.
-          </p>
+          <div className="p-10 text-center">
+            <p className="font-semibold text-[#121358]">
+              No orders found.
+            </p>
+
+            <p className="mt-1 text-sm text-muted">
+              Orders will appear here
+              when customers place them.
+            </p>
+          </div>
         )}
       </Card>
     </div>
   );
 }
 
-function DetailRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | number;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <dt className="shrink-0 text-muted">
-        {label}
-      </dt>
+/*
+|--------------------------------------------------------------------------
+| Order Action Buttons
+|--------------------------------------------------------------------------
+*/
 
-      <dd className="break-words text-right font-medium text-gray-900">
-        {value}
-      </dd>
-    </div>
+function OrderActions({
+  order,
+  updating,
+  onStatusChange,
+}: {
+  order: Order;
+
+  updating: boolean;
+
+  onStatusChange: (
+    order: Order,
+    status: OrderStatus,
+  ) => Promise<void>;
+}) {
+  if (updating) {
+    return (
+      <div className="flex items-center gap-2 text-xs font-semibold text-muted">
+        <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-[#121358]" />
+
+        Saving...
+      </div>
+    );
+  }
+
+  /*
+   * Pending
+   *
+   * Accept / Cancel
+   */
+  if (
+    order.status ===
+    "pending"
+  ) {
+    return (
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() =>
+            void onStatusChange(
+              order,
+              "confirmed",
+            )
+          }
+          className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-700"
+        >
+          Accept
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            void onStatusChange(
+              order,
+              "cancelled",
+            )
+          }
+          className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-100"
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  /*
+   * Accepted
+   *
+   * Ship / Cancel
+   */
+  if (
+    order.status ===
+    "confirmed"
+  ) {
+    return (
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() =>
+            void onStatusChange(
+              order,
+              "shipped",
+            )
+          }
+          className="rounded-lg bg-[#121358] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#292c82]"
+        >
+          Mark Shipped
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            void onStatusChange(
+              order,
+              "cancelled",
+            )
+          }
+          className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-100"
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  /*
+   * Shipped
+   *
+   * Deliver only.
+   */
+  if (
+    order.status ===
+    "shipped"
+  ) {
+    return (
+      <button
+        type="button"
+        onClick={() =>
+          void onStatusChange(
+            order,
+            "delivered",
+          )
+        }
+        className="rounded-lg bg-[#F59E0B] px-3 py-2 text-xs font-bold text-white transition hover:bg-orange-600"
+      >
+        Mark Delivered
+      </button>
+    );
+  }
+
+  /*
+   * Delivered
+   */
+  if (
+    order.status ===
+    "delivered"
+  ) {
+    return (
+      <span className="text-xs font-bold text-emerald-600">
+        Completed
+      </span>
+    );
+  }
+
+  /*
+   * Cancelled
+   */
+  return (
+    <span className="text-xs font-bold text-red-500">
+      Cancelled
+    </span>
   );
 }

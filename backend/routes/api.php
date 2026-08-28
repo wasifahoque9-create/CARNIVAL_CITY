@@ -6,10 +6,12 @@ use App\Http\Controllers\Api\BannerController;
 use App\Http\Controllers\Api\BusinessSettingController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\InvoiceController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\QuotationController;
+use App\Http\Controllers\Api\QuotationPdfController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
@@ -220,11 +222,13 @@ Route::prefix('cart')
 |--------------------------------------------------------------------------
 */
 
+// Guest + logged-in customer checkout
 Route::post('/orders', [
     OrderController::class,
     'store',
 ]);
 
+// Authenticated customer order management
 Route::middleware('auth:sanctum')
     ->prefix('orders')
     ->group(function () {
@@ -244,6 +248,7 @@ Route::middleware('auth:sanctum')
         ]);
     });
 
+// Admin order status update
 Route::middleware([
     'auth:sanctum',
     'admin',
@@ -255,15 +260,36 @@ Route::middleware([
 
 /*
 |--------------------------------------------------------------------------
+| Invoice Routes
+|--------------------------------------------------------------------------
+|
+| Access is checked inside InvoiceController.
+|
+| Supports:
+| - Logged-in order owner
+| - Admin
+| - Guest with matching guest cart token
+|
+*/
+
+Route::get('/orders/{order}/invoice', [
+    InvoiceController::class,
+    'download',
+]);
+
+/*
+|--------------------------------------------------------------------------
 | Quotation Routes
 |--------------------------------------------------------------------------
 */
 
+// Guest + logged-in quotation request
 Route::post('/quotations', [
     QuotationController::class,
     'store',
 ]);
 
+// Admin quotation management
 Route::middleware([
     'auth:sanctum',
     'admin',
@@ -284,7 +310,28 @@ Route::middleware([
             QuotationController::class,
             'updateStatus',
         ]);
+
+        Route::get('/{quotationRequest}/pdf', [
+            QuotationPdfController::class,
+            'download',
+        ]);
     });
+
+/*
+|--------------------------------------------------------------------------
+| Customer Quotation PDF
+|--------------------------------------------------------------------------
+|
+| Logged-in quotation owner can download their quotation PDF.
+| Authorization is checked inside QuotationPdfController.
+|
+*/
+
+Route::middleware('auth:sanctum')
+    ->get('/quotations/{quotationRequest}/pdf', [
+        QuotationPdfController::class,
+        'download',
+    ]);
 
 /*
 |--------------------------------------------------------------------------
@@ -317,16 +364,19 @@ Route::middleware('auth:sanctum')
 |--------------------------------------------------------------------------
 */
 
+// Authenticated customer review
 Route::post('/reviews', [
     ReviewController::class,
     'store',
 ])->middleware('auth:sanctum');
 
+// Public product reviews
 Route::get('/reviews/product/{product}', [
     ReviewController::class,
     'forProduct',
 ]);
 
+// Admin review moderation
 Route::middleware([
     'auth:sanctum',
     'admin',

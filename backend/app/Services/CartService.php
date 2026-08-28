@@ -13,21 +13,43 @@ use Illuminate\Validation\ValidationException;
 class CartService
 {
     /**
-     * Get or create cart for either:
-     * - Logged-in user
-     * - Guest customer using guest token
+     * Get/create customer cart.
+     *
+     * Logged-in:
+     * use user cart.
+     *
+     * Guest:
+     * use guest_token cart.
+     *
+     * If a guest logs in, their guest cart
+     * is automatically merged into user cart.
      */
     public function getOrCreateCart(
         ?User $user,
         ?string $guestToken = null
     ): Cart {
         if ($user) {
-            return Cart::firstOrCreate([
-                'user_id' => $user->id,
-            ]);
+            $userCart =
+                Cart::firstOrCreate([
+                    'user_id' =>
+                        $user->id,
+                ]);
+
+            /*
+             * User may have products that were
+             * added before login.
+             */
+            if ($guestToken) {
+                $this->mergeGuestCart(
+                    $userCart,
+                    $guestToken
+                );
+            }
+
+            return $userCart->fresh();
         }
 
-        if (!$guestToken) {
+        if (! $guestToken) {
             throw ValidationException::withMessages([
                 'guest_token' => [
                     'Guest cart token is required.',
@@ -36,21 +58,138 @@ class CartService
         }
 
         return Cart::firstOrCreate([
-            'guest_token' => $guestToken,
+            'guest_token' =>
+                $guestToken,
         ]);
     }
 
     /**
-     * Get cart summary.
+     * Merge guest cart into user cart.
+     *
+     * This keeps products when a guest
+     * logs into their account.
+     */
+    private function mergeGuestCart(
+        Cart $userCart,
+        string $guestToken
+    ): void {
+        $guestCart =
+            Cart::query()
+                ->where(
+                    'guest_token',
+                    $guestToken
+                )
+                ->where(
+                    'id',
+                    '!=',
+                    $userCart->id
+                )
+                ->first();
+
+        if (! $guestCart) {
+            return;
+        }
+
+        DB::transaction(
+            function () use (
+                $userCart,
+                $guestCart
+            ) {
+                $guestCart->load(
+                    'items'
+                );
+
+                foreach (
+                    $guestCart->items
+                    as $guestItem
+                ) {
+                    $query =
+                        CartItem::query()
+                            ->where(
+                                'cart_id',
+                                $userCart->id
+                            )
+                            ->where(
+                                'product_id',
+                                $guestItem
+                                    ->product_id
+                            );
+
+                    if (
+                        $guestItem
+                            ->product_variant_id
+                    ) {
+                        $query->where(
+                            'product_variant_id',
+                            $guestItem
+                                ->product_variant_id
+                        );
+                    } else {
+                        $query->whereNull(
+                            'product_variant_id'
+                        );
+                    }
+
+                    $existingItem =
+                        $query->first();
+
+                    if ($existingItem) {
+                        $existingItem->update([
+                            'quantity' =>
+                                (int) $existingItem
+                                    ->quantity
+                                +
+                                (int) $guestItem
+                                    ->quantity,
+                        ]);
+                    } else {
+                        CartItem::create([
+                            'cart_id' =>
+                                $userCart->id,
+
+                            'product_id' =>
+                                $guestItem
+                                    ->product_id,
+
+                            'product_variant_id' =>
+                                $guestItem
+                                    ->product_variant_id,
+
+                            'quantity' =>
+                                $guestItem
+                                    ->quantity,
+                        ]);
+                    }
+                }
+
+                /*
+                 * Guest cart has now been
+                 * transferred completely.
+                 *
+                 * Delete it so the same items
+                 * are not merged repeatedly.
+                 */
+                $guestCart
+                    ->items()
+                    ->delete();
+
+                $guestCart->delete();
+            }
+        );
+    }
+
+    /**
+     * Cart totals.
      */
     public function getCartSummary(
         ?User $user,
         ?string $guestToken = null
     ): array {
-        $cart = $this->getOrCreateCart(
-            $user,
-            $guestToken
-        );
+        $cart =
+            $this->getOrCreateCart(
+                $user,
+                $guestToken
+            );
 
         $cart->load([
             'items.product',
@@ -58,50 +197,79 @@ class CartService
         ]);
 
         $subtotal = 0.0;
+
         $discountTotal = 0.0;
 
-        foreach ($cart->items as $item) {
-            $lineTotal = $item->lineTotal();
+        foreach (
+            $cart->items as $item
+        ) {
+            $lineTotal =
+                $item->lineTotal();
 
-            $subtotal += $lineTotal;
+            $subtotal +=
+                $lineTotal;
 
             if (
                 $item->product &&
-                $item->product->discount_price
+                $item->product
+                    ->discount_price
             ) {
                 $regular =
-                    (float) $item->product->price *
+                    (float) $item
+                        ->product
+                        ->price
+                    *
                     $item->quantity;
 
                 if ($item->variant) {
                     $regular +=
-                        (float) $item->variant->price_adjustment *
+                        (float) $item
+                            ->variant
+                            ->price_adjustment
+                        *
                         $item->quantity;
                 }
 
-                $discountTotal += max(
-                    0,
-                    $regular - $lineTotal
-                );
+                $discountTotal +=
+                    max(
+                        0,
+                        $regular -
+                        $lineTotal
+                    );
             }
         }
 
         return [
-            'cart' => $cart,
-            'subtotal' => round($subtotal, 2),
-            'discount_total' => round(
-                $discountTotal,
-                2
-            ),
-            'total' => round($subtotal, 2),
-            'item_count' => $cart->items->sum(
-                'quantity'
-            ),
+            'cart' =>
+                $cart,
+
+            'subtotal' =>
+                round(
+                    $subtotal,
+                    2
+                ),
+
+            'discount_total' =>
+                round(
+                    $discountTotal,
+                    2
+                ),
+
+            'total' =>
+                round(
+                    $subtotal,
+                    2
+                ),
+
+            'item_count' =>
+                $cart->items->sum(
+                    'quantity'
+                ),
         ];
     }
 
     /**
-     * Add product to cart.
+     * Add product.
      */
     public function addItem(
         ?User $user,
@@ -118,37 +286,53 @@ class CartService
             ]);
         }
 
-        $product = Product::query()
-            ->where('status', 'active')
-            ->findOrFail($productId);
+        $product =
+            Product::query()
+                ->where(
+                    'status',
+                    'active'
+                )
+                ->findOrFail(
+                    $productId
+                );
 
         $variant = null;
 
         if ($variantId) {
-            $variant = ProductVariant::query()
-                ->where(
-                    'product_id',
-                    $product->id
-                )
-                ->findOrFail($variantId);
+            $variant =
+                ProductVariant::query()
+                    ->where(
+                        'product_id',
+                        $product->id
+                    )
+                    ->findOrFail(
+                        $variantId
+                    );
 
             $this->assertStock(
-                (int) $variant->stock_qty,
+                (int) $variant
+                    ->stock_qty,
+
                 $quantity,
+
                 'Selected variant is out of stock.'
             );
         } else {
             $this->assertStock(
-                (int) $product->stock_qty,
+                (int) $product
+                    ->stock_qty,
+
                 $quantity,
+
                 'Product is out of stock.'
             );
         }
 
-        $cart = $this->getOrCreateCart(
-            $user,
-            $guestToken
-        );
+        $cart =
+            $this->getOrCreateCart(
+                $user,
+                $guestToken
+            );
 
         return DB::transaction(
             function () use (
@@ -157,46 +341,70 @@ class CartService
                 $variant,
                 $quantity
             ) {
-                $item = CartItem::query()
-                    ->where(
-                        'cart_id',
-                        $cart->id
-                    )
-                    ->where(
-                        'product_id',
-                        $product->id
-                    )
-                    ->where(
+                $query =
+                    CartItem::query()
+                        ->where(
+                            'cart_id',
+                            $cart->id
+                        )
+                        ->where(
+                            'product_id',
+                            $product->id
+                        );
+
+                if ($variant) {
+                    $query->where(
                         'product_variant_id',
-                        $variant?->id
-                    )
-                    ->first();
+                        $variant->id
+                    );
+                } else {
+                    $query->whereNull(
+                        'product_variant_id'
+                    );
+                }
+
+                $item =
+                    $query->first();
 
                 if ($item) {
                     $newQty =
-                        (int) $item->quantity +
+                        (int) $item
+                            ->quantity
+                        +
                         $quantity;
 
-                    $available = $variant
-                        ? (int) $variant->stock_qty
-                        : (int) $product->stock_qty;
+                    $available =
+                        $variant
+                            ? (int) $variant
+                                ->stock_qty
+                            : (int) $product
+                                ->stock_qty;
 
                     $this->assertStock(
                         $available,
+
                         $newQty,
+
                         'Insufficient stock for requested quantity.'
                     );
 
                     $item->update([
-                        'quantity' => $newQty,
+                        'quantity' =>
+                            $newQty,
                     ]);
                 } else {
                     CartItem::create([
-                        'cart_id' => $cart->id,
-                        'product_id' => $product->id,
+                        'cart_id' =>
+                            $cart->id,
+
+                        'product_id' =>
+                            $product->id,
+
                         'product_variant_id' =>
                             $variant?->id,
-                        'quantity' => $quantity,
+
+                        'quantity' =>
+                            $quantity,
                     ]);
                 }
 
@@ -209,7 +417,7 @@ class CartService
     }
 
     /**
-     * Update cart item quantity.
+     * Update quantity.
      */
     public function updateItem(
         ?User $user,
@@ -225,34 +433,46 @@ class CartService
             ]);
         }
 
-        $cart = $this->getOrCreateCart(
-            $user,
-            $guestToken
-        );
+        $cart =
+            $this->getOrCreateCart(
+                $user,
+                $guestToken
+            );
 
-        $item = CartItem::query()
-            ->where(
-                'cart_id',
-                $cart->id
-            )
-            ->with([
-                'product',
-                'variant',
-            ])
-            ->findOrFail($cartItemId);
+        $item =
+            CartItem::query()
+                ->where(
+                    'cart_id',
+                    $cart->id
+                )
+                ->with([
+                    'product',
+                    'variant',
+                ])
+                ->findOrFail(
+                    $cartItemId
+                );
 
-        $available = $item->variant
-            ? (int) $item->variant->stock_qty
-            : (int) $item->product->stock_qty;
+        $available =
+            $item->variant
+                ? (int) $item
+                    ->variant
+                    ->stock_qty
+                : (int) $item
+                    ->product
+                    ->stock_qty;
 
         $this->assertStock(
             $available,
+
             $quantity,
+
             'Insufficient stock for requested quantity.'
         );
 
         $item->update([
-            'quantity' => $quantity,
+            'quantity' =>
+                $quantity,
         ]);
 
         return $cart->fresh([
@@ -262,17 +482,18 @@ class CartService
     }
 
     /**
-     * Remove item from cart.
+     * Remove item.
      */
     public function removeItem(
         ?User $user,
         ?string $guestToken,
         int $cartItemId
     ): Cart {
-        $cart = $this->getOrCreateCart(
-            $user,
-            $guestToken
-        );
+        $cart =
+            $this->getOrCreateCart(
+                $user,
+                $guestToken
+            );
 
         CartItem::query()
             ->where(
@@ -292,29 +513,35 @@ class CartService
     }
 
     /**
-     * Clear all cart items.
+     * Clear cart.
      */
     public function clearCart(
         ?User $user,
         ?string $guestToken = null
     ): void {
-        $cart = $this->getOrCreateCart(
-            $user,
-            $guestToken
-        );
+        $cart =
+            $this->getOrCreateCart(
+                $user,
+                $guestToken
+            );
 
-        $cart->items()->delete();
+        $cart
+            ->items()
+            ->delete();
     }
 
     /**
-     * Check available stock.
+     * Stock check.
      */
     private function assertStock(
         int $available,
         int $requested,
         string $message
     ): void {
-        if ($requested > $available) {
+        if (
+            $requested >
+            $available
+        ) {
             throw ValidationException::withMessages([
                 'quantity' => [
                     $message,

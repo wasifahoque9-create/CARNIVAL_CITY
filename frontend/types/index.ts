@@ -10,6 +10,10 @@ export type OrderStatus =
   | "delivered"
   | "cancelled";
 
+export type DeliveryMethod =
+  | "home_delivery"
+  | "pickup";
+
 export type PaymentStatus =
   | "pending"
   | "paid"
@@ -147,7 +151,10 @@ export interface Review {
 
   status: ReviewStatus;
 
-  user?: Pick<User, "id" | "name">;
+  user?: Pick<
+    User,
+    "id" | "name"
+  >;
 
   product?: Pick<
     Product,
@@ -262,7 +269,9 @@ export interface Payment {
 
   amount?: number;
 
-  transaction_ref?: string | null;
+  transaction_ref?:
+    | string
+    | null;
 }
 
 /*
@@ -274,6 +283,8 @@ export interface Payment {
 |
 | - Logged-in customer orders
 | - Guest customer orders
+| - Home Delivery
+| - Store Pickup
 |
 */
 
@@ -283,25 +294,57 @@ export interface Order {
   /*
    * Logged-in customer
    */
-  user_id?: number | null;
-customer_type?: string | null;
-  user?: {
-  id: number;
-  name: string;
-  phone?: string | null;
-  email?: string | null;
-} | null;
-guest_area?: string | null;
+  user_id?:
+    | number
+    | null;
+
+  /*
+   * Customer summary
+   *
+   * Used by admin order list.
+   * Works for both guest
+   * and registered customers.
+   */
+  customer_name?:
+    | string
+    | null;
+
+  customer_email?:
+    | string
+    | null;
+
+  customer_type?:
+    | "guest"
+    | "registered";
 
   /*
    * Order state
    */
   status: OrderStatus;
 
+  /*
+   * Final total:
+   * cart amount + delivery charge
+   */
   total_amount: number;
 
   /*
-   * Logged-in customer's saved address
+   * Delivery method
+   */
+  delivery_method:
+    DeliveryMethod;
+
+  /*
+   * Home Delivery charge.
+   * Pickup should be 0.
+   */
+  delivery_charge: number;
+
+  /*
+   * Logged-in customer's
+   * saved delivery address.
+   *
+   * Pickup can be null.
    */
   shipping_address_id?:
     | number
@@ -314,13 +357,24 @@ guest_area?: string | null;
   /*
    * Guest customer data
    */
-  guest_name?: string | null;
+  guest_name?:
+    | string
+    | null;
 
-  guest_email?: string | null;
+  guest_email?:
+    | string
+    | null;
 
-  guest_notes?: string | null;
-  guest_phone?: string | null;
+  guest_phone?:
+    | string
+    | null;
 
+  /*
+   * Guest delivery address.
+   *
+   * These may be null
+   * when Pickup is selected.
+   */
   guest_address_line1?:
     | string
     | null;
@@ -329,15 +383,21 @@ guest_area?: string | null;
     | string
     | null;
 
-  guest_city?: string | null;
+  guest_city?:
+    | string
+    | null;
 
   guest_postal_code?:
     | string
     | null;
 
-  guest_country?: string | null;
+  guest_country?:
+    | string
+    | null;
 
-  guest_token?: string | null;
+  guest_token?:
+    | string
+    | null;
 
   /*
    * Order relations
@@ -345,6 +405,10 @@ guest_area?: string | null;
   items?: OrderItem[];
 
   payment?: Payment;
+
+  user?:
+    | User
+    | null;
 
   /*
    * Timestamps
@@ -359,27 +423,51 @@ guest_area?: string | null;
 | Checkout Payload
 |--------------------------------------------------------------------------
 |
-| One interface is used for both:
+| One interface supports:
 |
-| Logged-in:
-| shipping_address_id
-|
-| Guest:
-| guest_name + guest address information
+| Logged-in + Home Delivery
+| Logged-in + Pickup
+| Guest + Home Delivery
+| Guest + Pickup
 |
 */
 
 export interface CheckoutPayload {
+  /*
+   * Required:
+   * home_delivery | pickup
+   */
+  delivery_method:
+    DeliveryMethod;
+
+  /*
+   * Logged-in Home Delivery
+   *
+   * Pickup can send null
+   * or omit this field.
+   */
   shipping_address_id?:
     | number
     | null;
 
+  /*
+   * Guest customer info.
+   *
+   * Required by backend
+   * for guest checkout.
+   */
   guest_name?: string;
 
   guest_email?: string;
 
   guest_phone?: string;
 
+  /*
+   * Guest Home Delivery
+   * address fields.
+   *
+   * Pickup does not need them.
+   */
   guest_address_line1?: string;
 
   guest_address_line2?: string;
@@ -390,6 +478,9 @@ export interface CheckoutPayload {
 
   guest_country?: string;
 
+  /*
+   * Payment
+   */
   payment_method:
     | "cod"
     | "gateway";
@@ -500,23 +591,4 @@ export interface ReviewsResponse {
   average_rating?: number;
 
   meta?: PaginationMeta;
-}
-export interface Banner {
-  id: number;
-  tag?: string | null;
-  title: string;
-  highlight?: string | null;
-  description?: string | null;
-  price?: number | string | null;
-  discount_text?: string | null;
-  cta_text?: string | null;
-  cta_link?: string | null;
-  secondary_cta_text?: string | null;
-  secondary_cta_link?: string | null;
-  fallback_emoji?: string | null;
-  sort_order?: number | null;
-  is_active: boolean;
-  image_path?: string | null;
-  image?: string | null;
-  image_url?: string | null;
 }

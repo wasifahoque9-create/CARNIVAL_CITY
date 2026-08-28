@@ -26,6 +26,7 @@ import {
   FaXmark,
   FaCheck,
   FaTrashCan,
+  FaDownload,
 } from "react-icons/fa6";
 
 import CartItemRow from "@/components/cart/CartItemRow";
@@ -155,6 +156,21 @@ export default function CartPage() {
     quotationSuccess,
     setQuotationSuccess,
   ] = useState("");
+
+  const [
+    quotationPdfId,
+    setQuotationPdfId,
+  ] = useState<number | null>(null);
+
+  const [
+    quotationCanDownload,
+    setQuotationCanDownload,
+  ] = useState(false);
+
+  const [
+    downloadingQuotationPdf,
+    setDownloadingQuotationPdf,
+  ] = useState(false);
 
   const [
     quotationForm,
@@ -556,16 +572,23 @@ try {
   function openQuotationForm() {
     setError("");
     setQuotationSuccess("");
+    setQuotationPdfId(null);
+    setQuotationCanDownload(false);
     setShowQuotationForm(true);
   }
 
   function closeQuotationForm() {
-    if (submittingQuotation) {
+    if (
+      submittingQuotation ||
+      downloadingQuotationPdf
+    ) {
       return;
     }
 
     setShowQuotationForm(false);
     setQuotationSuccess("");
+    setQuotationPdfId(null);
+    setQuotationCanDownload(false);
   }
 
   async function handleQuotationSubmit(
@@ -624,6 +647,14 @@ try {
         )} submitted successfully.`,
       );
 
+      setQuotationPdfId(
+        response.data.id,
+      );
+
+      setQuotationCanDownload(
+        Boolean(response.data.user_id),
+      );
+
       setQuotationForm({
         customer_name: "",
         customer_email: "",
@@ -645,6 +676,36 @@ try {
       );
     } finally {
       setSubmittingQuotation(false);
+    }
+  }
+
+  async function handleQuotationPdfDownload() {
+    if (!quotationPdfId) {
+      return;
+    }
+
+    try {
+      setDownloadingQuotationPdf(true);
+      setError("");
+
+      await quotationApi.downloadPdf(
+        quotationPdfId,
+        false,
+      );
+    } catch (error) {
+      console.error(
+        "Unable to download quotation PDF:",
+        error,
+      );
+
+      setError(
+        getErrorMessage(
+          error,
+          "Unable to download your quotation PDF. Please try again.",
+        ),
+      );
+    } finally {
+      setDownloadingQuotationPdf(false);
     }
   }
 
@@ -1304,13 +1365,49 @@ try {
                     {quotationSuccess}
                   </p>
 
-                  <button
-                    type="button"
-                    onClick={closeQuotationForm}
-                    className="mt-5 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-black text-white transition hover:bg-emerald-700"
-                  >
-                    Done
-                  </button>
+                  {quotationCanDownload &&
+                    quotationPdfId && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void handleQuotationPdfDownload()
+                        }
+                        disabled={
+                          downloadingQuotationPdf
+                        }
+                        className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-[#121358] px-5 py-3 text-sm font-black text-white transition hover:bg-[#222475] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {downloadingQuotationPdf ? (
+                          <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                        ) : (
+                          <FaDownload />
+                        )}
+
+                        {downloadingQuotationPdf
+                          ? "Preparing PDF..."
+                          : "Download Quotation PDF"}
+                      </button>
+                    )}
+
+                  {!quotationCanDownload && (
+                    <p className="mx-auto mt-4 max-w-md text-xs leading-5 text-emerald-700/80">
+                      Your quotation request was submitted successfully.
+                      PDF download is available for signed-in customers.
+                    </p>
+                  )}
+
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      onClick={closeQuotationForm}
+                      disabled={
+                        downloadingQuotationPdf
+                      }
+                      className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-black text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Done
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <>

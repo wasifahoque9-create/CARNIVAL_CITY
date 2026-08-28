@@ -16,5 +16,14 @@ class BusinessSetting extends Model
         'currency',
         'facebook_url',
         'instagram_url',
+
+        'delivery_charge',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'delivery_charge' => 'decimal:2',
+        ];
+    }
 }
