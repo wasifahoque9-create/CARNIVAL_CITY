@@ -178,26 +178,18 @@ class UpdateProductRequest extends FormRequest
             |
             */
 
-            'images' => [
-                'sometimes',
-                'nullable',
-                'array',
-            ],
+    'images' => [
+    'sometimes',
+    'nullable',
+    'array',
+],
 
-            'images.*' => [
-                'array',
-            ],
-
-            'images.*.image_path' => [
-                'required',
-                'string',
-                'max:2048',
-            ],
-
-            'images.*.is_primary' => [
-                'sometimes',
-                'boolean',
-            ],
+    'images.*' => [
+    'file',
+    'image',
+    'mimes:jpg,jpeg,png,webp,gif',
+    'max:10240',
+],
 
             /*
             |--------------------------------------------------------------------------
@@ -282,9 +274,6 @@ class UpdateProductRequest extends FormRequest
 
             'sku.unique' =>
                 'Another product is already using this SKU.',
-
-            'images.*.image_path.required' =>
-                'Every product image must contain an image path.',
 
             'variants.*.variant_name.required' =>
                 'Every variant must contain a variant name.',

@@ -13,7 +13,10 @@ class ProductImageResource extends JsonResource
             'id' => $this->id,
             'image_path' => $this->image_path,
             'url' => $this->url,
+            'thumbnail_url' => $this->thumbnail_url,
+            'alt_text' => $this->alt_text,
             'is_primary' => $this->is_primary,
+            'sort_order' => $this->sort_order,
         ];
     }
 }

@@ -385,7 +385,6 @@ Route::middleware([
         ReviewController::class,
         'moderate',
     ]);
-
 /*
 |--------------------------------------------------------------------------
 | Admin Routes

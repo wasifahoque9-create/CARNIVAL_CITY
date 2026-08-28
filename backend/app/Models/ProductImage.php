@@ -10,6 +10,7 @@ class ProductImage extends Model
     protected $fillable = [
         'product_id',
         'image_path',
+        'thumbnail_path',
         'alt_text',
         'is_primary',
         'sort_order',
@@ -22,6 +23,7 @@ class ProductImage extends Model
 
     protected $appends = [
         'url',
+        'thumbnail_url',
     ];
 
     public function product(): BelongsTo
@@ -41,6 +43,25 @@ class ProductImage extends Model
             return $imagePath;
         }
 
-        return rtrim(config('app.url'), '/') . '/storage/' . ltrim($imagePath, '/');
+        return rtrim(config('app.url'), '/')
+            . '/storage/'
+            . ltrim($imagePath, '/');
+    }
+
+    public function getThumbnailUrlAttribute(): string
+    {
+        if (! $this->thumbnail_path) {
+            return $this->url;
+        }
+
+        $thumbnailPath = trim($this->thumbnail_path);
+
+        if (preg_match('/^https?:\/\//i', $thumbnailPath)) {
+            return $thumbnailPath;
+        }
+
+        return rtrim(config('app.url'), '/')
+            . '/storage/'
+            . ltrim($thumbnailPath, '/');
     }
 }

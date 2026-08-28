@@ -14,7 +14,32 @@ import type { Product } from "@/types";
 */
 
 function normalizeImageUrl(url: string): string {
-  return encodeURI(url.replace("http://", "https://"))
+  if (!url) {
+    return "/placeholder-product.svg";
+  }
+
+  const cleanUrl = url.trim();
+
+  // Keep local Laravel URLs as HTTP
+  if (
+    cleanUrl.includes("localhost") ||
+    cleanUrl.includes("127.0.0.1")
+  ) {
+    return encodeURI(cleanUrl)
+      .replace(/\(/g, "%28")
+      .replace(/\)/g, "%29");
+  }
+
+  // Use HTTPS for external URLs
+  if (cleanUrl.startsWith("http://")) {
+    return encodeURI(
+      cleanUrl.replace(/^http:\/\//i, "https://"),
+    )
+      .replace(/\(/g, "%28")
+      .replace(/\)/g, "%29");
+  }
+
+  return encodeURI(cleanUrl)
     .replace(/\(/g, "%28")
     .replace(/\)/g, "%29");
 }
@@ -28,6 +53,12 @@ function getProductImageUrl(product: Product): string {
     return "/placeholder-product.svg";
   }
 
+  // Use thumbnail for the product listing/card
+  if (image.thumbnail_url) {
+    return normalizeImageUrl(image.thumbnail_url);
+  }
+
+  // Fallback to original image
   if (image.image_path) {
     const cleanPath = image.image_path.trim();
 
@@ -40,13 +71,13 @@ function getProductImageUrl(product: Product): string {
     );
   }
 
+  // Final fallback
   if (image.url) {
     return normalizeImageUrl(image.url);
   }
 
   return "/placeholder-product.svg";
 }
-
 /*
 |--------------------------------------------------------------------------
 | Calculate discount percentage
