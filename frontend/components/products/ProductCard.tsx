@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-
 import { useState, type MouseEvent } from "react";
 
 import {
@@ -11,7 +10,6 @@ import {
 } from "@/lib/api";
 
 import { useCart } from "@/lib/cart";
-
 import type { Product } from "@/types";
 
 /*
@@ -21,9 +19,7 @@ import type { Product } from "@/types";
 */
 
 function normalizeImageUrl(url: string): string {
-  return encodeURI(
-    url.replace("http://", "https://"),
-  )
+  return encodeURI(url.trim())
     .replace(/\(/g, "%28")
     .replace(/\)/g, "%29");
 }
@@ -40,12 +36,30 @@ function getProductImageUrl(
     return "/placeholder-product.svg";
   }
 
+  /*
+   * Prefer the complete URL returned
+   * by Laravel's API.
+   *
+   * IMPORTANT:
+   * Do NOT convert http:// to https://.
+   * Local Laravel runs on HTTP.
+   */
+  if (image.url) {
+    return normalizeImageUrl(image.url);
+  }
+
+  /*
+   * Fallback to image_path if the API
+   * does not provide a complete URL.
+   */
   if (image.image_path) {
     const cleanPath =
       image.image_path.trim();
 
     if (/^https?:\/\//i.test(cleanPath)) {
-      return normalizeImageUrl(cleanPath);
+      return normalizeImageUrl(
+        cleanPath,
+      );
     }
 
     return normalizeImageUrl(
@@ -54,10 +68,6 @@ function getProductImageUrl(
         "",
       )}`,
     );
-  }
-
-  if (image.url) {
-    return normalizeImageUrl(image.url);
   }
 
   return "/placeholder-product.svg";
@@ -205,10 +215,6 @@ export default function ProductCard({
     product.average_rating ?? 0,
   );
 
-  const reviewCount = Number(
-    product.review_count ?? 0,
-  );
-
   const productImageUrl = imageFailed
     ? "/placeholder-product.svg"
     : getProductImageUrl(product);
@@ -302,7 +308,9 @@ export default function ProductCard({
         </Link>
 
         <div className="mt-3 flex items-center gap-2 text-sm">
-          <RatingStars rating={rating} />
+          <RatingStars
+            rating={rating}
+          />
         </div>
 
         <div className="mt-4 flex min-h-8 items-center gap-2">
