@@ -9,7 +9,9 @@ export type OrderStatus =
   | "shipped"
   | "delivered"
   | "cancelled";
-
+export type DeliveryMethod =
+  | "home_delivery"
+  | "pickup";
 export type PaymentStatus =
   | "pending"
   | "paid"
@@ -135,7 +137,43 @@ export interface Cart {
   total: number;
   item_count: number;
 }
+/*
+|--------------------------------------------------------------------------
+| Checkout Payload
+|--------------------------------------------------------------------------
+*/
 
+export interface CheckoutPayload {
+  shipping_address_id?: number | null;
+
+  guest_name?: string;
+
+  guest_email?: string;
+
+  guest_phone?: string;
+
+  guest_address_line1?: string;
+
+  guest_address_line2?: string;
+
+  guest_city?: string;
+
+  guest_postal_code?: string;
+
+  guest_country?: string;
+  
+  delivery_method:
+    | "home_delivery"
+    | "pickup";
+  payment_method:
+    | "cod"
+    | "gateway";
+
+  gateway_payload?: Record<
+    string,
+    unknown
+  >;
+}
 export interface Address {
   id: number;
   label?: string | null;
