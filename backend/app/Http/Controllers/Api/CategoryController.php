@@ -8,6 +8,7 @@ use App\Http\Requests\Api\Category\UpdateCategoryRequest;
 use App\Http\Resources\CategoryResource;
 use App\Models\Category;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -52,8 +53,7 @@ class CategoryController extends Controller
         }
 
         /*
-         * Remove the uploaded file from the data array
-         * because image is not a database column.
+         * image is an uploaded file, not a database column.
          */
         unset($data['image']);
 
@@ -105,8 +105,7 @@ class CategoryController extends Controller
         }
 
         /*
-         * image is the uploaded file, not a database
-         * field, so remove it before updating the model.
+         * image is the uploaded file, not a database field.
          */
         unset($data['image']);
 
@@ -123,36 +122,74 @@ class CategoryController extends Controller
     public function destroy(
         Category $category
     ): JsonResponse {
-        if (
-            $category->primaryProducts()->exists() ||
-            $category->products()->exists()
-        ) {
-            return response()->json([
-                'message' =>
-                    'Cannot delete category with associated products.',
-            ], 422);
-        }
-
         /*
-         * Delete the category image from storage
-         * before deleting the category.
+         * Delete the category safely without deleting
+         * any products.
+         *
+         * Products can be connected to categories in
+         * two different ways in this project:
+         *
+         * 1. products.category_id
+         * 2. category_product pivot table
+         *
+         * We remove both associations first.
          */
-        if (
-            $category->image_path &&
-            Storage::disk('public')->exists(
-                $category->image_path
-            )
-        ) {
-            Storage::disk('public')->delete(
-                $category->image_path
-            );
-        }
 
-        $category->delete();
+        DB::transaction(function () use ($category) {
+
+            /*
+             * Remove the category from the many-to-many
+             * category_product relationship.
+             *
+             * IMPORTANT:
+             * This does NOT delete the products.
+             */
+            $category->products()->detach();
+
+            /*
+             * Remove the category from products that use
+             * this category as their primary category.
+             *
+             * This requires products.category_id to allow NULL.
+             */
+            $category->primaryProducts()->update([
+                'category_id' => null,
+            ]);
+
+            /*
+             * If this category has child categories,
+             * don't delete those child categories.
+             *
+             * Instead, make them top-level categories.
+             */
+            $category->children()->update([
+                'parent_id' => null,
+            ]);
+
+            /*
+             * Delete the category image from storage.
+             */
+            if (
+                $category->image_path &&
+                Storage::disk('public')->exists(
+                    $category->image_path
+                )
+            ) {
+                Storage::disk('public')->delete(
+                    $category->image_path
+                );
+            }
+
+            /*
+             * Finally delete only the category itself.
+             *
+             * Products remain untouched.
+             */
+            $category->delete();
+        });
 
         return response()->json([
-            'message' =>
-                'Category deleted successfully.',
+            'message' => 'Category deleted successfully.',
         ]);
     }
 }

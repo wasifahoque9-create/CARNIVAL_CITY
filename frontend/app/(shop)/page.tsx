@@ -18,33 +18,15 @@ import type { Swiper as SwiperType } from "swiper";
 import { Autoplay, Navigation } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/navigation";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 
 import ProductsByCategory from "@/components/products/ProductsByCategory";
 import { PageLoader } from "@/components/ui/Spinner";
 import { catalogApi } from "@/lib/api";
 import type { Category } from "@/types";
-
-const categoryIcons: Record<string, string> = {
-  laptop: "💻",
-  laptops: "💻",
-  pc: "🖥️",
-  desktop: "🖥️",
-  desktops: "🖥️",
-  mobile: "📱",
-  mobiles: "📱",
-  phone: "📱",
-  smartphone: "📱",
-  earbuds: "🎧",
-  headphone: "🎧",
-  headphones: "🎧",
-  accessory: "🔌",
-  accessories: "🔌",
-  watch: "⌚",
-  smartwatch: "⌚",
-  tablet: "📟",
-  camera: "📷",
-};
 
 type CategoryWithImage = Category & {
   image_url?: string | null;
@@ -91,8 +73,7 @@ function PromoImage({
 }
 
 // ---------------------------------------------------------------------------
-// Hero slider data — 3 slides. Swap the `image` paths for real product shots
-// whenever you have them; `fallback` is the emoji shown if an image 404s.
+// Hero slider data — 3 slides.
 // ---------------------------------------------------------------------------
 const heroSlides = [
   {
@@ -100,7 +81,9 @@ const heroSlides = [
     title: (
       <>
         Upgrade Your World With{" "}
-        <span className="text-[#F59E0B]">Smarter Gadgets</span>
+        <span className="text-[#F59E0B]">
+          Smarter Gadgets
+        </span>
       </>
     ),
     description:
@@ -116,7 +99,9 @@ const heroSlides = [
     title: (
       <>
         Power Through Your Day With{" "}
-        <span className="text-[#F59E0B]">Pro Laptops</span>
+        <span className="text-[#F59E0B]">
+          Pro Laptops
+        </span>
       </>
     ),
     description:
@@ -132,10 +117,13 @@ const heroSlides = [
     title: (
       <>
         Capture Every Moment With{" "}
-        <span className="text-[#F59E0B]">Smart Cameras</span>
+        <span className="text-[#F59E0B]">
+          Smart Cameras
+        </span>
       </>
     ),
-    description: "Power, performance, and productivity in one setup",
+    description:
+      "Power, performance, and productivity in one setup",
     price: "189",
     discount: "Save up to 30%",
     image: "/sle1.png",
@@ -145,13 +133,22 @@ const heroSlides = [
 ];
 
 export default function HomePage() {
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<Category[]>(
+    [],
+  );
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeHeroSlide, setActiveHeroSlide] = useState(0);
-  const [categorySwiper, setCategorySwiper] = useState<SwiperType | null>(null);
-  const [isCategoryStart, setIsCategoryStart] = useState(true);
-  const [isCategoryEnd, setIsCategoryEnd] = useState(false);
+
+  const [categorySwiper, setCategorySwiper] =
+    useState<SwiperType | null>(null);
+
+  const [isCategoryStart, setIsCategoryStart] =
+    useState(true);
+
+  const [isCategoryEnd, setIsCategoryEnd] =
+    useState(false);
 
   useEffect(() => {
     let pageIsActive = true;
@@ -161,13 +158,17 @@ export default function HomePage() {
         setLoading(true);
         setError("");
 
-        const categoryData = await catalogApi.getCategories();
+        const categoryData =
+          await catalogApi.getCategories();
 
         if (pageIsActive) {
           setCategories(categoryData);
         }
       } catch (error) {
-        console.error("Unable to load categories:", error);
+        console.error(
+          "Unable to load categories:",
+          error,
+        );
 
         if (pageIsActive) {
           setError(
@@ -192,27 +193,63 @@ export default function HomePage() {
     return <PageLoader />;
   }
 
+  /*
+   * Calculate the number of visible category cards
+   * based on the actual number of categories.
+   *
+   * This prevents empty space when there are fewer
+   * than 6 categories on desktop.
+   */
+  const desktopCategorySlides = Math.min(
+    categories.length,
+    6,
+  );
+
+  const tabletCategorySlides = Math.min(
+    categories.length,
+    4.2,
+  );
+
+  const mobileCategorySlides = Math.min(
+    categories.length,
+    3.2,
+  );
+
+  const smallMobileCategorySlides = Math.min(
+    categories.length,
+    2.2,
+  );
+
   return (
     <main className="min-h-screen bg-slate-50">
       {/* Promotional information bar */}
       <section className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-8 gap-y-2 px-4 py-2.5 text-xs font-medium text-slate-600 sm:px-6 lg:px-8">
           <span className="flex items-center gap-2">
-            <span className="text-base">🚚</span>
+            <span className="text-base">
+              🚚
+            </span>
+
             Free delivery on selected orders
           </span>
 
           <span className="hidden h-4 w-px bg-slate-300 sm:block" />
 
           <span className="flex items-center gap-2">
-            <span className="text-base">🔥</span>
+            <span className="text-base">
+              🔥
+            </span>
+
             New deals added every week
           </span>
 
           <span className="hidden h-4 w-px bg-slate-300 sm:block" />
 
           <span className="flex items-center gap-2">
-            <span className="text-base">🛡️</span>
+            <span className="text-base">
+              🛡️
+            </span>
+
             Secure and trusted shopping
           </span>
         </div>
@@ -225,14 +262,20 @@ export default function HomePage() {
           <article className="relative min-h-[450px] overflow-hidden rounded-3xl bg-gradient-to-br from-[#121358] via-[#242675] to-[#4b4eb5] text-white shadow-xl sm:min-h-[410px] lg:col-span-8">
             {/* Decorative background */}
             <div className="pointer-events-none absolute -left-24 -top-24 z-0 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
+
             <div className="pointer-events-none absolute -bottom-32 right-10 z-0 h-80 w-80 rounded-full bg-[#F59E0B]/30 blur-3xl" />
 
             <Swiper
               modules={[Autoplay]}
-              autoplay={{ delay: 5000, disableOnInteraction: false }}
+              autoplay={{
+                delay: 5000,
+                disableOnInteraction: false,
+              }}
               loop
               onSlideChange={(swiper) =>
-                setActiveHeroSlide(swiper.realIndex)
+                setActiveHeroSlide(
+                  swiper.realIndex,
+                )
               }
               className="hero-swiper relative z-10"
             >
@@ -242,6 +285,7 @@ export default function HomePage() {
                     <div className="relative z-20 max-w-xl">
                       <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] backdrop-blur-sm">
                         <span className="h-2 w-2 animate-pulse rounded-full bg-[#F59E0B]" />
+
                         {slide.tag}
                       </div>
 
@@ -261,6 +305,7 @@ export default function HomePage() {
 
                           <p className="mt-1 text-3xl font-black text-white">
                             ${slide.price}
+
                             <span className="text-base font-semibold text-white/60">
                               .00
                             </span>
@@ -369,7 +414,10 @@ export default function HomePage() {
                   className="mt-4 inline-flex items-center gap-1 text-xs font-black uppercase tracking-wide text-[#121358] underline decoration-2 underline-offset-4"
                 >
                   Shop now
-                  <span aria-hidden="true">→</span>
+
+                  <span aria-hidden="true">
+                    →
+                  </span>
                 </Link>
               </div>
 
@@ -409,7 +457,10 @@ export default function HomePage() {
                   className="mt-4 inline-flex items-center gap-1 text-xs font-black uppercase tracking-wide text-white underline decoration-2 underline-offset-4"
                 >
                   Shop now
-                  <span aria-hidden="true">→</span>
+
+                  <span aria-hidden="true">
+                    →
+                  </span>
                 </Link>
               </div>
 
@@ -432,25 +483,45 @@ export default function HomePage() {
       <section className="px-4 py-5 sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-7xl grid-cols-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:grid-cols-4">
           <ServiceItem
-            icon={<Truck size={22} strokeWidth={2.2} />}
+            icon={
+              <Truck
+                size={22}
+                strokeWidth={2.2}
+              />
+            }
             title="Fast Delivery"
             description="Quick delivery service"
           />
 
           <ServiceItem
-            icon={<ShieldCheck size={22} strokeWidth={2.2} />}
+            icon={
+              <ShieldCheck
+                size={22}
+                strokeWidth={2.2}
+              />
+            }
             title="Secure Payment"
             description="Protected transactions"
           />
 
           <ServiceItem
-            icon={<RotateCcw size={22} strokeWidth={2.2} />}
+            icon={
+              <RotateCcw
+                size={22}
+                strokeWidth={2.2}
+              />
+            }
             title="Easy Returns"
             description="Simple return process"
           />
 
           <ServiceItem
-            icon={<Headphones size={22} strokeWidth={2.2} />}
+            icon={
+              <Headphones
+                size={22}
+                strokeWidth={2.2}
+              />
+            }
             title="Customer Support"
             description="We are ready to help"
           />
@@ -482,7 +553,10 @@ export default function HomePage() {
             className="inline-flex items-center gap-2 text-sm font-bold text-[#121358] transition hover:text-[#F59E0B]"
           >
             View all products
-            <span aria-hidden="true">→</span>
+
+            <span aria-hidden="true">
+              →
+            </span>
           </Link>
         </div>
 
@@ -497,37 +571,71 @@ export default function HomePage() {
             <Swiper
               modules={[Navigation]}
               spaceBetween={16}
-              slidesPerView={2.2}
-              onSwiper={setCategorySwiper}
+              slidesPerView={
+                smallMobileCategorySlides
+              }
+              watchOverflow={false}
+              onSwiper={(swiper) => {
+                setCategorySwiper(swiper);
+
+                setIsCategoryStart(
+                  swiper.isBeginning,
+                );
+
+                setIsCategoryEnd(
+                  swiper.isEnd,
+                );
+              }}
               onSlideChange={(swiper) => {
-                setIsCategoryStart(swiper.isBeginning);
-                setIsCategoryEnd(swiper.isEnd);
+                setIsCategoryStart(
+                  swiper.isBeginning,
+                );
+
+                setIsCategoryEnd(
+                  swiper.isEnd,
+                );
+              }}
+              onResize={(swiper) => {
+                setIsCategoryStart(
+                  swiper.isBeginning,
+                );
+
+                setIsCategoryEnd(
+                  swiper.isEnd,
+                );
               }}
               breakpoints={{
-                480: { slidesPerView: 3.2 },
-                768: { slidesPerView: 4.2 },
-                1024: { slidesPerView: 6 },
+                480: {
+                  slidesPerView:
+                    mobileCategorySlides,
+                },
+
+                768: {
+                  slidesPerView:
+                    tabletCategorySlides,
+                },
+
+                1024: {
+                  slidesPerView:
+                    desktopCategorySlides,
+                },
               }}
               className="category-swiper !pb-1 !pl-1 !pr-1"
             >
               {categories.map((category) => {
-                const categoryType = (
-                  category.type ??
-                  category.slug ??
-                  ""
-                ).toLowerCase();
-
                 /*
                  * Category image comes from the backend.
                  *
-                 * Do NOT force http:// to https:// here.
-                 * During local development Laravel normally serves images
-                 * through http://localhost:8000/storage/...
+                 * If no image was uploaded, image_url should
+                 * be null. In that case we intentionally render
+                 * nothing inside the image container.
                  */
                 const categoryImageUrl = (
                   category as CategoryWithImage
                 ).image_url
-                  ? (category as CategoryWithImage).image_url
+                  ? (
+                      category as CategoryWithImage
+                    ).image_url
                   : null;
 
                 return (
@@ -535,34 +643,29 @@ export default function HomePage() {
                     key={category.id}
                     className="!h-auto"
                   >
-                  <Link
-    href={`/categories/${category.slug}`}
-    className="group relative flex h-[220px] w-full flex-col items-center overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm transition duration-300 hover:-translate-y-1 hover:border-[#F59E0B]/50 hover:shadow-lg sm:p-4"
-  >
-    {/* Decorative circle */}
-    <div className="pointer-events-none absolute -right-8 -top-8 h-20 w-20 rounded-full bg-[#F59E0B]/10 transition duration-300 group-hover:scale-150" />
+                    <Link
+                      href={`/categories/${category.slug}`}
+                      className="group relative flex h-[220px] w-full flex-col items-center overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm transition duration-300 hover:-translate-y-1 hover:border-[#F59E0B]/50 hover:shadow-lg sm:p-4"
+                    >
+                      {/* Decorative circle */}
+                      <div className="pointer-events-none absolute -right-8 -top-8 h-20 w-20 rounded-full bg-[#F59E0B]/10 transition duration-300 group-hover:scale-150" />
 
-    {/* Category image */}
-    <div className="relative mx-auto flex h-17 w-17 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#121358]/5 transition duration-300 group-hover:scale-105 group-hover:bg-white">
-      {categoryImageUrl ? (
-        <img
-          src={categoryImageUrl}
-          alt={category.name}
-          className="h-full w-full object-contain p-2"
-          onError={(event) => {
-            event.currentTarget.style.display = "none";
+                      {/* Category image */}
+                      <div className="relative mx-auto flex h-17 w-17 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#121358]/5 transition duration-300 group-hover:scale-105 group-hover:bg-white">
+                        {categoryImageUrl && (
+                          <img
+                            src={categoryImageUrl}
+                            alt={category.name}
+                            className="h-full w-full object-contain p-2"
+                            onError={(event) => {
+                              event.currentTarget.style.display =
+                                "none";
                             }}
                           />
-                        ) : (
-                          <span className="text-3xl">
-                            {categoryIcons[categoryType] ?? "📦"}
-                          </span>
                         )}
                       </div>
 
-                      {/* Category name
-                          Fixed height prevents cards with two-line
-                          category names from becoming taller. */}
+                      {/* Category name */}
                       <span className="relative mt-4 flex h-10 w-full items-center justify-center text-sm font-bold leading-5 text-slate-800 transition group-hover:text-[#121358]">
                         <span className="line-clamp-2">
                           {category.name}
@@ -583,28 +686,39 @@ export default function HomePage() {
             <button
               type="button"
               aria-label="Previous categories"
-              onClick={() => categorySwiper?.slidePrev()}
+              onClick={() =>
+                categorySwiper?.slidePrev()
+              }
               disabled={isCategoryStart}
               className="absolute -left-3 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-[#121358] shadow-md transition hover:bg-[#121358] hover:text-white disabled:pointer-events-none disabled:opacity-0 sm:-left-4 sm:flex"
             >
-              <ChevronLeft size={18} strokeWidth={2.5} />
+              <ChevronLeft
+                size={18}
+                strokeWidth={2.5}
+              />
             </button>
 
             {/* Right arrow */}
             <button
               type="button"
               aria-label="Next categories"
-              onClick={() => categorySwiper?.slideNext()}
+              onClick={() =>
+                categorySwiper?.slideNext()
+              }
               disabled={isCategoryEnd}
               className="absolute -right-3 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-[#121358] shadow-md transition hover:bg-[#121358] hover:text-white disabled:pointer-events-none disabled:opacity-0 sm:-right-4 sm:flex"
             >
-              <ChevronRight size={18} strokeWidth={2.5} />
+              <ChevronRight
+                size={18}
+                strokeWidth={2.5}
+              />
             </button>
           </div>
         ) : (
           !error && (
             <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">
-              No categories are currently available.
+              No categories are currently
+              available.
             </div>
           )
         )}

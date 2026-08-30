@@ -21,14 +21,6 @@ export type ReviewStatus =
   | "approved"
   | "hidden";
 
-export type CategoryType =
-  | "laptop"
-  | "pc"
-  | "desktop"
-  | "mobile"
-  | "earbuds"
-  | "accessory";
-
 export interface User {
   id: number;
   name: string;
@@ -44,13 +36,18 @@ export interface Category {
   parent_id?: number | null;
   name: string;
   slug: string;
-  type: CategoryType;
 
   /*
    * Category image returned by the Laravel API.
    *
-   * Example:
-   * https://localhost:8000/storage/categories/laptop.jpg
+   * If an image was uploaded:
+   * image_url contains the complete public URL.
+   *
+   * If no image was uploaded:
+   * image_url is null.
+   *
+   * The frontend should leave the image area blank
+   * when image_url is null.
    */
   image_url?: string | null;
 
