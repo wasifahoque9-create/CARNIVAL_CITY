@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 
 import Image from "next/image";
@@ -45,24 +45,24 @@ type Banner = {
 };
 
 const categoryIcons: Record<string, string> = {
-  laptop: "💻",
-  laptops: "💻",
-  pc: "🖥️",
-  desktop: "🖥️",
-  desktops: "🖥️",
-  mobile: "📱",
-  mobiles: "📱",
-  phone: "📱",
-  smartphone: "📱",
-  earbuds: "🎧",
-  headphone: "🎧",
-  headphones: "🎧",
-  accessory: "🔌",
-  accessories: "🔌",
-  watch: "⌚",
-  smartwatch: "⌚",
-  tablet: "📟",
-  camera: "📷",
+  laptop: "??",
+  laptops: "??",
+  pc: "???",
+  desktop: "???",
+  desktops: "???",
+  mobile: "??",
+  mobiles: "??",
+  phone: "??",
+  smartphone: "??",
+  earbuds: "??",
+  headphone: "??",
+  headphones: "??",
+  accessory: "??",
+  accessories: "??",
+  watch: "?",
+  smartwatch: "?",
+  tablet: "??",
+  camera: "??",
 };
 
 type CategoryWithImage = Category & {
@@ -146,7 +146,7 @@ function HeroBannerImage({
 }
 // ---------------------------------------------------------------------------
 // Hero slide shape used for rendering. This is filled either from the admin
-// -managed Banner API, or — if no banners exist yet — from the static
+// -managed Banner API, or � if no banners exist yet � from the static
 // defaults below, so the homepage never looks empty on a fresh install.
 // ---------------------------------------------------------------------------
 type HeroSlideData = {
@@ -198,7 +198,7 @@ function bannerToSlide(banner: Banner): HeroSlideData {
         : null,
     discount: banner.discount_text,
     image: getBannerImage(banner),
-    fallback: banner.fallback_emoji || "🛍️",
+    fallback: banner.fallback_emoji || "???",
     ctaHref: banner.cta_link || "#shop-by-category",
     ctaText: banner.cta_text || "Shop Now",
     secondaryCtaHref: banner.secondary_cta_link || "/products",
@@ -218,7 +218,7 @@ const defaultHeroSlides: HeroSlideData[] = [
     price: "236",
     discount: "Save up to 25%",
     image: "/mobile.png",
-    fallback: "💻",
+    fallback: "??",
     ctaHref: "#shop-by-category",
     ctaText: "Shop Now",
     secondaryCtaHref: "/products",
@@ -234,7 +234,7 @@ const defaultHeroSlides: HeroSlideData[] = [
     price: "412",
     discount: "Save up to 20%",
     image: "/laptp2.png",
-    fallback: "💻",
+    fallback: "??",
     ctaHref: "#shop-by-category",
     ctaText: "Shop Now",
     secondaryCtaHref: "/products",
@@ -249,7 +249,7 @@ const defaultHeroSlides: HeroSlideData[] = [
     price: "189",
     discount: "Save up to 30%",
     image: "/sle1.png",
-    fallback: "📷",
+    fallback: "??",
     ctaHref: "#shop-by-category",
     ctaText: "Shop Now",
     secondaryCtaHref: "/products",
@@ -334,33 +334,35 @@ export default function HomePage() {
   return (
     <main className="min-h-screen bg-slate-50">
       {/* Promotional information bar */}
-      <section className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-8 gap-y-2 px-4 py-2.5 text-xs font-medium text-slate-600 sm:px-6 lg:px-8">
-          <span className="flex items-center gap-2">
-            <span className="text-base">🚚</span>
-            Free delivery on selected orders
-          </span>
+<section className="border-b border-slate-200 bg-white">
+  <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-8 gap-y-2 px-4 py-2.5 text-xs font-medium text-slate-600 sm:px-6 lg:px-8">
 
-          <span className="hidden h-4 w-px bg-slate-300 sm:block" />
+    <span className="flex items-center gap-2">
+      <Truck size={16} strokeWidth={2.2} className="text-[#121358]" />
+      Free delivery on selected orders
+    </span>
 
-          <span className="flex items-center gap-2">
-            <span className="text-base">🔥</span>
-            New deals added every week
-          </span>
+    <span className="hidden h-4 w-px bg-slate-300 sm:block" />
 
-          <span className="hidden h-4 w-px bg-slate-300 sm:block" />
+    <span className="flex items-center gap-2">
+      <RotateCcw size={16} strokeWidth={2.2} className="text-[#121358]" />
+      New deals added every week
+    </span>
 
-          <span className="flex items-center gap-2">
-            <span className="text-base">🛡️</span>
-            Secure and trusted shopping
-          </span>
-        </div>
-      </section>
+    <span className="hidden h-4 w-px bg-slate-300 sm:block" />
+
+    <span className="flex items-center gap-2">
+      <ShieldCheck size={16} strokeWidth={2.2} className="text-[#121358]" />
+      Secure and trusted shopping
+    </span>
+
+  </div>
+</section>
 
       {/* Hero promotional section */}
       <section className="px-4 pb-5 pt-6 sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-7xl grid-cols-1 gap-4 lg:grid-cols-12 lg:items-stretch">
-          {/* Main large promotional banner — driven by the admin-managed Banner API */}
+          {/* Main large promotional banner � driven by the admin-managed Banner API */}
           <article className="relative h-[560px] overflow-hidden rounded-3xl bg-[#121358] text-white shadow-xl sm:h-[580px] lg:col-span-8 lg:h-[620px]">
             <Swiper
               modules={[Autoplay]}
@@ -518,7 +520,7 @@ export default function HomePage() {
                   className="mt-4 inline-flex items-center gap-1 text-xs font-black uppercase tracking-wide text-[#121358] underline decoration-2 underline-offset-4"
                 >
                   Shop now
-                  <span aria-hidden="true">→</span>
+                  <span aria-hidden="true">?</span>
                 </Link>
               </div>
 
@@ -526,7 +528,7 @@ export default function HomePage() {
                 <PromoImage
                   src="/watch1.png"
                   alt="Smart watch promotion"
-                  fallback="⌚"
+                  fallback="?"
                   className="object-bottom"
                 />
               </div>
@@ -558,7 +560,7 @@ export default function HomePage() {
                   className="mt-4 inline-flex items-center gap-1 text-xs font-black uppercase tracking-wide text-white underline decoration-2 underline-offset-4"
                 >
                   Shop now
-                  <span aria-hidden="true">→</span>
+                  <span aria-hidden="true">?</span>
                 </Link>
               </div>
 
@@ -566,7 +568,7 @@ export default function HomePage() {
                 <PromoImage
                   src="/earsbads.png"
                   alt="Wireless headphones promotion"
-                  fallback="🎧"
+                  fallback="??"
                   className="object-bottom"
                 />
               </div>
@@ -627,7 +629,7 @@ export default function HomePage() {
             className="inline-flex items-center gap-2 text-sm font-bold text-[#121358] transition hover:text-[#F59E0B]"
           >
             View all products
-            <span aria-hidden="true">→</span>
+              <span aria-hidden="true">→</span>
           </Link>
         </div>
 
@@ -662,12 +664,8 @@ export default function HomePage() {
                   ""
                 ).toLowerCase();
 
-                const categoryImageUrl = (category as CategoryWithImage).image_url
-                  ? (category as CategoryWithImage).image_url!.replace(
-                    "http://",
-                    "https://",
-                  )
-                  : null;
+                const categoryImageUrl =
+  (category as CategoryWithImage).image_url ?? null;
 
                 return (
                   <SwiperSlide key={category.id}>
@@ -686,7 +684,7 @@ export default function HomePage() {
                           />
                         ) : (
                           <span className="text-3xl">
-                            {categoryIcons[categoryType] ?? "📦"}
+                            {categoryIcons[categoryType] ?? "??"}
                           </span>
                         )}
                       </div>
@@ -764,3 +762,4 @@ function ServiceItem({ icon, title, description }: ServiceItemProps) {
     </div>
   );
 }
+

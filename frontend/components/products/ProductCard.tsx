@@ -256,7 +256,7 @@ export default function ProductCard({
         <p className="text-sm text-gray-400">
           {product.brand ||
             product.category?.name ||
-            "ShopSphere"}
+            "Carnival City"}
         </p>
 
         <Link
@@ -308,3 +308,4 @@ export default function ProductCard({
     </article>
   );
 }
+

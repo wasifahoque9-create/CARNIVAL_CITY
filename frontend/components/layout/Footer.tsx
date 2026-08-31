@@ -203,7 +203,7 @@ export default function Footer() {
                 </p>
 
                 <p className="text-sm mt-4">
-                  contact@shopsphere.com
+                  contact@Carnival City.com
                 </p>
 
                 <Link
@@ -224,7 +224,7 @@ export default function Footer() {
             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
 
               <p className="text-sm text-gray-500">
-                © {new Date().getFullYear()} ShopSphere.
+                © {new Date().getFullYear()} Carnival City.
                 All rights reserved.
               </p>
 

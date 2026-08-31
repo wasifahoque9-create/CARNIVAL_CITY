@@ -551,7 +551,7 @@ setProfile({
                     <p className="text-xs leading-5 text-slate-600">
                       Your personal information is
                       securely stored and used to
-                      manage your ShopSphere
+                      manage your Carnival City
                       account.
                     </p>
                   </div>
@@ -836,7 +836,7 @@ setProfile({
                 {!imageFailed ? (
                   <img
                     src={ADMIN_IMAGE}
-                    alt="ShopSphere administrator"
+                    alt="Carnival City administrator"
                     className="relative z-10 h-full w-full object-cover object-center"
                     onError={() =>
                       setImageFailed(true)
@@ -853,7 +853,7 @@ setProfile({
                     </div>
 
                     <p className="mt-5 text-xs font-black uppercase tracking-[0.24em] text-white/55">
-                      ShopSphere Account
+                      Carnival City Account
                     </p>
                   </div>
                 )}
@@ -870,7 +870,7 @@ setProfile({
                     <p className="text-xs font-black uppercase tracking-[0.18em] text-[#F59E0B]">
                       {isAdmin
                         ? "Administrator"
-                        : "ShopSphere Member"}
+                        : "Carnival City Member"}
                     </p>
 
                     <h2 className="mt-2 truncate text-2xl font-black text-[#121358]">

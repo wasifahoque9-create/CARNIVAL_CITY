@@ -11,11 +11,11 @@ export default function AboutPage() {
 
         <div className="relative max-w-7xl mx-auto px-6 text-center">
           <span className="inline-block px-4 py-2 bg-yellow-400 text-black rounded-full text-sm font-semibold mb-6">
-            Welcome to ShopSphere
+            Welcome to Carnival City
           </span>
 
           <h1 className="text-5xl md:text-6xl font-bold leading-tight">
-            About ShopSphere
+            About Carnival City
           </h1>
 
           <p className="mt-6 text-gray-300 max-w-3xl mx-auto text-lg">
@@ -40,7 +40,7 @@ export default function AboutPage() {
             </h2>
 
             <p className="text-gray-600 leading-relaxed text-lg mb-6">
-              ShopSphere started with a simple mission — making technology
+              Carnival City started with a simple mission — making technology
               services and gadget repairs accessible, reliable, and affordable
               for everyone.
             </p>
@@ -63,7 +63,7 @@ export default function AboutPage() {
 
                 <Image
                   src="/about.png"
-                  alt="About ShopSphere"
+                  alt="About Carnival City"
                   fill
                   priority
                   className="
@@ -212,7 +212,7 @@ export default function AboutPage() {
 
           <p className="max-w-3xl mx-auto text-gray-600 text-lg">
             Combining technical expertise, genuine customer care, and premium
-            service standards, ShopSphere has become a trusted technology
+            service standards, Carnival City has become a trusted technology
             partner for thousands of customers.
           </p>
 

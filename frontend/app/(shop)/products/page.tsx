@@ -14,7 +14,7 @@ export default function ProductsPage() {
 
         <div className="relative mx-auto flex max-w-7xl flex-col items-center px-4 py-20 text-center sm:px-6 lg:px-8">
           <span className="rounded-full bg-white/10 px-4 py-1.5 text-xs font-bold uppercase tracking-[0.2em] text-blue-300">
-            ShopSphere Catalog
+            Carnival City Catalog
           </span>
 
           <h1 className="mt-5 text-5xl font-black tracking-tight text-white sm:text-6xl">

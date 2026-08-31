@@ -943,6 +943,73 @@ export const orderApi = {
         method: "PUT",
       },
     ).then(unwrap),
+    downloadInvoice: async (
+  id: number | string,
+): Promise<void> => {
+  const token = getToken();
+  const guestCartToken = getGuestCartToken();
+
+  const headers = new Headers();
+
+  headers.set("Accept", "application/pdf");
+
+  if (token) {
+    headers.set(
+      "Authorization",
+      `Bearer ${token}`,
+    );
+  }
+
+  if (guestCartToken) {
+    headers.set(
+      "X-Guest-Cart-Token",
+      guestCartToken,
+    );
+  }
+
+  const response = await fetch(
+    `${API_BASE}/orders/${id}/invoice`,
+    {
+      method: "GET",
+      headers,
+    },
+  );
+
+  if (!response.ok) {
+    const body = await response
+      .json()
+      .catch(() => ({}));
+
+    throw new ApiError(
+      response.status,
+      body.message ||
+        "Unable to download the invoice.",
+      body.errors,
+    );
+  }
+
+  const blob =
+    await response.blob();
+
+  const url =
+    window.URL.createObjectURL(blob);
+
+  const link =
+    document.createElement("a");
+
+  link.href = url;
+
+  link.download =
+    `invoice-${String(id).padStart(6, "0")}.pdf`;
+
+  document.body.appendChild(link);
+
+  link.click();
+
+  link.remove();
+
+  window.URL.revokeObjectURL(url);
+},
 };
 
 
@@ -1057,6 +1124,78 @@ export const quotationApi = {
         body: JSON.stringify(data),
       },
     ),
+      downloadPdf: async (
+    id: number | string,
+  ): Promise<void> => {
+    const token = getToken();
+
+    const guestCartToken =
+      getGuestCartToken();
+
+    const headers = new Headers();
+
+    headers.set(
+      "Accept",
+      "application/pdf",
+    );
+
+    if (token) {
+      headers.set(
+        "Authorization",
+        `Bearer ${token}`,
+      );
+    }
+
+    if (guestCartToken) {
+      headers.set(
+        "X-Guest-Cart-Token",
+        guestCartToken,
+      );
+    }
+
+    const response = await fetch(
+      `${API_BASE}/quotations/${id}/pdf`,
+      {
+        method: "GET",
+        headers,
+      },
+    );
+
+    if (!response.ok) {
+      const body = await response
+        .json()
+        .catch(() => ({}));
+
+      throw new ApiError(
+        response.status,
+        body.message ||
+          "Unable to download quotation PDF.",
+        body.errors,
+      );
+    }
+
+    const blob =
+      await response.blob();
+
+    const url =
+      window.URL.createObjectURL(blob);
+
+    const link =
+      document.createElement("a");
+
+    link.href = url;
+
+    link.download =
+      `quotation-${String(id).padStart(6, "0")}.pdf`;
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    link.remove();
+
+    window.URL.revokeObjectURL(url);
+  },
 };
 
 /*
@@ -1216,61 +1355,65 @@ export const adminApi = {
   },
 
   categories: {
-    list: () =>
-      api<
-        | Category[]
-        | {
-            data: Category[];
-          }
-      >(
-        "/categories",
-      ).then(unwrap),
+  list: () =>
+    api<
+      Category[] | {
+        data: Category[];
+      }
+    >("/categories").then(unwrap),
 
-    create: (
-      data: Partial<Category>,
-    ) =>
-      api<
-        | Category
-        | {
-            data: Category;
-          }
-      >(
-        "/categories",
-        {
-          method: "POST",
-          body: JSON.stringify(
-            data,
-          ),
-        },
-      ).then(unwrap),
+  create: (
+    data: FormData | Partial<Category>,
+  ) =>
+    api<
+      Category | {
+        data: Category;
+      }
+    >("/categories", {
+      method: "POST",
+      body:
+        data instanceof FormData
+          ? data
+          : JSON.stringify(data),
+    }).then(unwrap),
 
-    update: (
-      id: number,
-      data: Partial<Category>,
-    ) =>
-      api<
-        | Category
-        | {
-            data: Category;
-          }
-      >(
-        `/categories/${id}`,
-        {
-          method: "PUT",
-          body: JSON.stringify(
-            data,
-          ),
-        },
-      ).then(unwrap),
+  update: (
+    id: number,
+    data: FormData | Partial<Category>,
+  ) => {
+    if (data instanceof FormData) {
+      if (!data.has("_method")) {
+        data.append("_method", "PUT");
+      }
 
-    delete: (id: number) =>
-      api<ApiMessage>(
-        `/categories/${id}`,
-        {
-          method: "DELETE",
-        },
-      ),
+      return api<
+        Category | {
+          data: Category;
+        }
+      >(`/categories/${id}`, {
+        method: "POST",
+        body: data,
+      }).then(unwrap);
+    }
+
+    return api<
+      Category | {
+        data: Category;
+      }
+    >(`/categories/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }).then(unwrap);
   },
+
+  delete: (id: number) =>
+    api<ApiMessage>(
+      `/categories/${id}`,
+      {
+        method: "DELETE",
+      },
+    ),
+},
   banners: {
     list: () =>
       api<Banner[] | { data: Banner[] }>(

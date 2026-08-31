@@ -146,7 +146,7 @@ export default function RegisterPage() {
 
           <h1 className="text-6xl font-bold leading-tight">
             Create your <br />
-            <span className="text-orange-400">ShopSphere</span> <br />
+            <span className="text-orange-400">Carnival City</span> <br />
             account
           </h1>
 
@@ -210,7 +210,7 @@ export default function RegisterPage() {
                 <p className="text-sm uppercase tracking-[4px] text-purple-400">
                   CREATE ACCOUNT
                 </p>
-                <h2 className="text-4xl font-bold">Join ShopSphere</h2>
+                <h2 className="text-4xl font-bold">Join Carnival City</h2>
                 <p className="text-gray-400">
                   Fill in your details to get started
                 </p>

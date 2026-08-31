@@ -679,7 +679,7 @@ function EmptyOrders() {
       <p className="mx-auto mt-4 max-w-md text-sm leading-7 text-slate-500">
         You have not placed any orders yet.
         Explore our latest gadgets and start
-        your ShopSphere shopping experience.
+        your Carnival City shopping experience.
       </p>
 
       <Link

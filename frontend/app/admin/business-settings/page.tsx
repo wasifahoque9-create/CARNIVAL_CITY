@@ -29,7 +29,7 @@ import {
 } from "@/lib/api";
 
 const INITIAL_FORM: BusinessSettingsPayload = {
-  business_name: "ShopSphere",
+  business_name: "Carnival City",
   business_email: "",
   business_phone: "",
   whatsapp_country_code: "880",
@@ -103,7 +103,7 @@ export default function BusinessSettingsPage() {
         setForm({
           business_name:
             settings.business_name ||
-            "ShopSphere",
+            "Carnival City",
 
           business_email:
             settings.business_email ||
@@ -427,7 +427,7 @@ export default function BusinessSettingsPage() {
                       value,
                     )
                   }
-                  placeholder="ShopSphere"
+                  placeholder="Carnival City"
                 />
 
                 <SettingsInput
@@ -571,7 +571,7 @@ export default function BusinessSettingsPage() {
                   }
                   placeholder="100"
                   min={0}
-                  step={0.01}
+                  step={1}
                 />
 
                 <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4">
@@ -853,17 +853,28 @@ function SettingsNumberInput({
         min={min}
         step={step}
         placeholder={placeholder}
-        onChange={(event) =>
-          onChange(
-            Number(event.target.value),
-          )
-        }
+        onChange={(event) => {
+          const value = event.target.value;
+
+          if (value === "") {
+            onChange(0);
+            return;
+          }
+
+          const numberValue = Number(value);
+
+          if (Number.isFinite(numberValue)) {
+            onChange(numberValue);
+          }
+        }}
+        onWheel={(event) => {
+          event.currentTarget.blur();
+        }}
         className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#F59E0B] focus:bg-white focus:ring-4 focus:ring-[#F59E0B]/10"
       />
     </label>
   );
 }
-
 type PreviewRowProps = {
   icon: ReactNode;
   label: string;

@@ -1324,7 +1324,7 @@ function DefaultReviewCard() {
 
         <ReviewAvatar
           image={DEFAULT_REVIEW_IMAGE}
-          name="ShopSphere Customer"
+          name="Carnival City Customer"
         />
 
         <div className="-mt-3 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[#121358] text-white shadow-md">
@@ -1353,7 +1353,7 @@ function DefaultReviewCard() {
         </p>
 
         <p className="mt-5 flex items-center justify-center gap-1.5 text-sm font-bold text-[#121358]">
-          ShopSphere Customer
+          Carnival City Customer
           <FaCheckCircle
             size={13}
             className="text-[#EA580C]"

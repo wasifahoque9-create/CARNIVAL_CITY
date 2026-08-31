@@ -32,7 +32,7 @@ export default function AdminDashboardPage() {
   return (
     <div>
       <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Dashboard</h1>
-      <p className="mt-1 text-muted">Overview of your ShopSphere store</p>
+      <p className="mt-1 text-muted">Overview of your Carnival City store</p>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {statCards.map((card) => (
@@ -83,3 +83,4 @@ export default function AdminDashboardPage() {
     </div>
   );
 }
+

@@ -120,7 +120,7 @@ function LoginForm() {
             <h1 className="mt-7 text-5xl font-black leading-tight">
               Welcome back to
               <span className="block text-[#F59E0B]">
-                ShopSphere
+                Carnival City
               </span>
             </h1>
 
@@ -212,7 +212,7 @@ function LoginForm() {
 
             <p className="mt-2 text-sm leading-6 text-slate-500">
               Sign in to continue to your
-              ShopSphere account.
+              Carnival City account.
             </p>
           </div>
 
@@ -234,7 +234,7 @@ function LoginForm() {
                   </h2>
 
                   <p className="mt-1 text-xs text-slate-500">
-                    Welcome back to ShopSphere
+                    Welcome back to Carnival City
                   </p>
                 </div>
               </div>
@@ -400,7 +400,7 @@ function LoginForm() {
                 <p className="text-xs leading-5 text-slate-500">
                   Your login details are securely
                   processed through the
-                  ShopSphere authentication
+                  Carnival City authentication
                   system.
                 </p>
               </div>

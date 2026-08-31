@@ -1160,7 +1160,7 @@ export default function CheckoutPage() {
                       <FaMoneyBillWave />
                     }
                     title="Cash on Delivery"
-                    description="Pay when your ShopSphere order arrives."
+                    description="Pay when your Carnival City order arrives."
                     badge="Available"
                     onClick={() =>
                       setPaymentMethod(
@@ -1190,7 +1190,7 @@ export default function CheckoutPage() {
                   <FaShieldHalved className="mt-0.5 shrink-0 text-[#121358]" />
 
                   <p className="text-xs leading-5 text-slate-600">
-                    Your order information is securely submitted through the ShopSphere Laravel backend.
+                    Your order information is securely submitted through the Carnival City Laravel backend.
                   </p>
                 </div>
               </div>
@@ -2128,3 +2128,4 @@ function TrustItem({
     </article>
   );
 }
+

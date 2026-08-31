@@ -542,7 +542,7 @@ try {
     );
 
     const message = [
-      "Hello, I would like to place an order from ShopSphere.",
+      "Hello, I would like to place an order from Carnival City.",
       "",
       `Customer WhatsApp: +${customerWhatsAppNumber}`,
       `Country: ${selectedCountry.name}`,

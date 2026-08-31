@@ -191,7 +191,7 @@ export default function TrackOrderPage() {
             </span>
 
             <h1 className="mt-4 text-3xl font-black tracking-tight text-white sm:text-4xl lg:text-5xl">
-              Track Your ShopSphere Order
+              Track Your Carnival City Order
             </h1>
 
             <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-200 sm:text-base">
@@ -696,3 +696,4 @@ function InfoRow({
     </div>
   );
 }
+

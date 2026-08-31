@@ -43,7 +43,7 @@ export default function Header() {
   className="flex shrink-0 items-center gap-2"
 >
   <img
-    src="/CCBM Logo.png"
+    src="/logo.png"
     alt="Carnival City Logo"
     className="h-12 w-auto object-contain"
   />
@@ -281,7 +281,7 @@ export default function Header() {
 
                   <div>
                     <p className="font-bold text-white">
-                      {user?.name || "ShopSphere User"}
+                      {user?.name || "Carnival City User"}
                     </p>
                     <p className="text-xs text-white/60">
                       {isAdmin ? "Administrator account" : "Customer account"}

@@ -16,11 +16,11 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "ShopSphere — Gadgets & Electronics",
-    template: "%s | ShopSphere",
+    default: "Carnival City — Gadgets & Electronics",
+    template: "%s | Carnival City",
   },
   description:
-    "Shop the latest laptops, phones, earbuds, and tech accessories at ShopSphere.",
+    "Shop the latest laptops, phones, earbuds, and tech accessories at Carnival City.",
 };
 
 export default function RootLayout({

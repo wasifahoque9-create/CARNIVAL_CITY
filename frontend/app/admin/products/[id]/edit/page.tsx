@@ -30,7 +30,7 @@ type EditProductForm = {
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ||
-  "https://shopsphere-backend-bsma.onrender.com/api";
+  "https://Carnival City-backend-bsma.onrender.com/api";
 
 const initialForm: EditProductForm = {
   category_id: "",
@@ -61,7 +61,7 @@ function getToken() {
     localStorage.getItem("token") ||
     localStorage.getItem("access_token") ||
     localStorage.getItem("admin_token") ||
-    localStorage.getItem("shopsphere_token") ||
+    localStorage.getItem("Carnival City_token") ||
     "";
 
   if (direct) return direct.replace(/^Bearer\s+/i, "");
@@ -244,7 +244,7 @@ function imageUrl(image: ProductImagePreview) {
 
   const storageBase =
     process.env.NEXT_PUBLIC_STORAGE_URL ||
-    "https://shopsphere-backend-bsma.onrender.com/storage";
+    "https://Carnival City-backend-bsma.onrender.com/storage";
 
   return `${storageBase}/${url.replace(/^\/+/, "").replace(/^storage\//, "")}`;
 }
