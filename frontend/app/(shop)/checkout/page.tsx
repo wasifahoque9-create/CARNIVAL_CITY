@@ -2008,7 +2008,15 @@ function OrderSuccess({
           </div>
         )}
 
-        <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+        <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row sm:flex-wrap">
+          <Link
+            href="/track-order"
+            className="inline-flex items-center justify-center gap-3 rounded-2xl border-2 border-[#121358] bg-white px-7 py-3.5 text-sm font-black text-[#121358] transition hover:-translate-y-1 hover:bg-[#121358] hover:text-white hover:shadow-xl"
+          >
+            <FaTruckFast />
+            Track Your Order
+          </Link>
+
           <button
             type="button"
             onClick={() =>

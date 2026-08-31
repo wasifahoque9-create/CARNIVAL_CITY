@@ -9,9 +9,17 @@ export type OrderStatus =
   | "shipped"
   | "delivered"
   | "cancelled";
+
 export type DeliveryMethod =
   | "home_delivery"
   | "pickup";
+
+export type DeliveryStatus =
+  | "shipped"
+  | "in_transit"
+  | "out_for_delivery"
+  | "delivered";
+
 export type PaymentStatus =
   | "pending"
   | "paid"
@@ -137,6 +145,267 @@ export interface Cart {
   total: number;
   item_count: number;
 }
+
+/*
+|--------------------------------------------------------------------------
+| Address
+|--------------------------------------------------------------------------
+*/
+
+export interface Address {
+  id: number;
+
+  label?: string | null;
+
+  line1: string;
+
+  line2?: string | null;
+
+  city: string;
+
+  postal_code: string;
+
+  country: string;
+
+  is_default: boolean;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Order Item
+|--------------------------------------------------------------------------
+*/
+
+export interface OrderItem {
+  id: number;
+
+  product_id: number;
+
+  product_variant_id?:
+    | number
+    | null;
+
+  quantity: number;
+
+  unit_price: number;
+
+  line_total: number;
+
+  product?: Product;
+
+  variant?: ProductVariant;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Payment
+|--------------------------------------------------------------------------
+*/
+
+export interface Payment {
+  id: number;
+
+  status: PaymentStatus;
+
+  method: string;
+
+  amount?: number;
+
+  transaction_ref?:
+    | string
+    | null;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Order
+|--------------------------------------------------------------------------
+|
+| Supports:
+|
+| - Logged-in customer orders
+| - Guest customer orders
+| - Home Delivery
+| - Store Pickup
+| - Delivery Tracking
+|
+*/
+
+export interface Order {
+  id: number;
+
+  /*
+   * Logged-in customer
+   */
+  user_id?:
+    | number
+    | null;
+
+  /*
+   * Customer summary
+   */
+  customer_name?:
+    | string
+    | null;
+
+  customer_email?:
+    | string
+    | null;
+
+  customer_type?:
+    | "guest"
+    | "registered";
+
+  /*
+   * Order state
+   */
+  status: OrderStatus;
+
+  /*
+   * Final total
+   */
+  total_amount: number;
+
+  /*
+   * Delivery method
+   */
+  delivery_method:
+    DeliveryMethod;
+
+  /*
+   * Delivery charge
+   */
+  delivery_charge: number;
+
+  /*
+   * Delivery Tracking
+   *
+   * Used only for Home Delivery.
+   */
+  delivery_person_name?:
+    | string
+    | null;
+
+  delivery_person_phone?:
+    | string
+    | null;
+
+  tracking_number?:
+    | string
+    | null;
+
+  delivery_status?:
+    | DeliveryStatus
+    | null;
+
+  delivery_note?:
+    | string
+    | null;
+
+  delivery_updated_at?:
+    | string
+    | null;
+
+  /*
+   * Logged-in customer's
+   * saved shipping address.
+   */
+  shipping_address_id?:
+    | number
+    | null;
+
+  shipping_address?:
+    | Address
+    | null;
+
+  /*
+   * Guest customer data
+   */
+  guest_name?:
+    | string
+    | null;
+
+  guest_email?:
+    | string
+    | null;
+
+  guest_phone?:
+    | string
+    | null;
+
+  /*
+   * Guest delivery address
+   */
+  guest_address_line1?:
+    | string
+    | null;
+
+  guest_address_line2?:
+    | string
+    | null;
+
+  guest_city?:
+    | string
+    | null;
+
+  guest_postal_code?:
+    | string
+    | null;
+
+  guest_country?:
+    | string
+    | null;
+
+  guest_token?:
+    | string
+    | null;
+
+  /*
+   * Relations
+   */
+  items?: OrderItem[];
+
+  payment?: Payment;
+
+  user?:
+    | User
+    | null;
+
+  /*
+   * Timestamps
+   */
+  created_at: string;
+
+  updated_at?: string;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Delivery Tracking Update Payload
+|--------------------------------------------------------------------------
+*/
+
+export interface DeliveryTrackingPayload {
+  delivery_person_name?:
+    | string
+    | null;
+
+  delivery_person_phone?:
+    | string
+    | null;
+
+  tracking_number?:
+    | string
+    | null;
+
+  delivery_status:
+    DeliveryStatus;
+
+  delivery_note?:
+    | string
+    | null;
+}
+
 /*
 |--------------------------------------------------------------------------
 | Checkout Payload
@@ -144,7 +413,12 @@ export interface Cart {
 */
 
 export interface CheckoutPayload {
-  shipping_address_id?: number | null;
+  delivery_method:
+    DeliveryMethod;
+
+  shipping_address_id?:
+    | number
+    | null;
 
   guest_name?: string;
 
@@ -161,10 +435,7 @@ export interface CheckoutPayload {
   guest_postal_code?: string;
 
   guest_country?: string;
-  
-  delivery_method:
-    | "home_delivery"
-    | "pickup";
+
   payment_method:
     | "cod"
     | "gateway";
@@ -173,47 +444,6 @@ export interface CheckoutPayload {
     string,
     unknown
   >;
-}
-export interface Address {
-  id: number;
-  label?: string | null;
-  line1: string;
-  line2?: string | null;
-  city: string;
-  postal_code: string;
-  country: string;
-  is_default: boolean;
-}
-
-export interface OrderItem {
-  id: number;
-  product_id: number;
-  quantity: number;
-  unit_price: number;
-  line_total: number;
-  product?: Product;
-  variant?: ProductVariant;
-}
-
-export interface Payment {
-  id: number;
-  status: PaymentStatus;
-  method: string;
-  amount?: number;
-  transaction_ref?: string | null;
-}
-
-export interface Order {
-  id: number;
-  user_id?: number;
-  status: OrderStatus;
-  total_amount: number;
-  shipping_address_id?: number;
-  shipping_address?: Address;
-  items?: OrderItem[];
-  payment?: Payment;
-  created_at: string;
-  updated_at?: string;
 }
 
 export interface PaginationMeta {

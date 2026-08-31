@@ -228,7 +228,28 @@ Route::post('/orders', [
     'store',
 ]);
 
-// Authenticated customer order management
+/*
+|--------------------------------------------------------------------------
+| Guest Order Tracking
+|--------------------------------------------------------------------------
+|
+| Guest customers can view only their own order.
+| OrderController verifies X-Guest-Cart-Token against
+| the guest_token stored with the order.
+|
+*/
+
+Route::get('/guest/orders/{order}', [
+    OrderController::class,
+    'guestShow',
+]);
+
+/*
+|--------------------------------------------------------------------------
+| Authenticated Customer Order Management
+|--------------------------------------------------------------------------
+*/
+
 Route::middleware('auth:sanctum')
     ->prefix('orders')
     ->group(function () {
@@ -248,15 +269,56 @@ Route::middleware('auth:sanctum')
         ]);
     });
 
-// Admin order status update
+/*
+|--------------------------------------------------------------------------
+| Admin Order Management
+|--------------------------------------------------------------------------
+|
+| Admin can:
+|
+| - Update normal order status
+| - Update delivery tracking information
+|
+*/
+
 Route::middleware([
     'auth:sanctum',
     'admin',
 ])
-    ->put('/orders/{order}/status', [
-        OrderController::class,
-        'updateStatus',
-    ]);
+    ->prefix('orders')
+    ->group(function () {
+        /*
+         * Pending
+         *      ↓
+         * Accepted
+         *      ↓
+         * Shipped
+         *      ↓
+         * Delivered
+         */
+        Route::put('/{order}/status', [
+            OrderController::class,
+            'updateStatus',
+        ]);
+
+        /*
+         * Delivery Tracking
+         *
+         * Home Delivery only.
+         *
+         * Shipped
+         *      ↓
+         * In Transit
+         *      ↓
+         * Out for Delivery
+         *      ↓
+         * Delivered
+         */
+        Route::put('/{order}/delivery-tracking', [
+            OrderController::class,
+            'updateDeliveryTracking',
+        ]);
+    });
 
 /*
 |--------------------------------------------------------------------------

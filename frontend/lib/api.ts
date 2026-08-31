@@ -7,6 +7,7 @@ import type {
   PaginationMeta,
   CheckoutPayload,
   DashboardStats,
+  DeliveryTrackingPayload,
   Order,
   PaginatedResponse,
   Product,
@@ -873,6 +874,27 @@ export const orderApi = {
 
   /*
   |--------------------------------------------------------------------------
+  | Guest Order Details / Tracking
+  |--------------------------------------------------------------------------
+  |
+  | Guest customers can view only the order that matches
+  | their browser's X-Guest-Cart-Token.
+  |
+  */
+
+  getGuest: (
+    id: number | string,
+  ) =>
+    api<
+      Order | {
+        data: Order;
+      }
+    >(
+      `/guest/orders/${id}`,
+    ).then(unwrap),
+
+  /*
+  |--------------------------------------------------------------------------
   | Checkout
   |--------------------------------------------------------------------------
   |
@@ -1287,6 +1309,12 @@ export const adminApi = {
       ),
   },
   orders: {
+    /*
+    |--------------------------------------------------------------------------
+    | Admin Order List
+    |--------------------------------------------------------------------------
+    */
+
     list: (
       page = 1,
       status?: string,
@@ -1299,6 +1327,12 @@ export const adminApi = {
           status,
         })}`,
       ),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Update Main Order Status
+    |--------------------------------------------------------------------------
+    */
 
     updateStatus: (
       id: number,
@@ -1316,6 +1350,40 @@ export const adminApi = {
           body: JSON.stringify({
             status,
           }),
+        },
+      ).then(unwrap),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Update Delivery Tracking
+    |--------------------------------------------------------------------------
+    |
+    | Home Delivery only.
+    |
+    | Shipped
+    |   ↓
+    | In Transit
+    |   ↓
+    | Out for Delivery
+    |   ↓
+    | Delivered
+    |
+    */
+
+    updateDeliveryTracking: (
+      id: number,
+      data: DeliveryTrackingPayload,
+    ) =>
+      api<
+        | Order
+        | {
+            data: Order;
+          }
+      >(
+        `/orders/${id}/delivery-tracking`,
+        {
+          method: "PUT",
+          body: JSON.stringify(data),
         },
       ).then(unwrap),
   },
