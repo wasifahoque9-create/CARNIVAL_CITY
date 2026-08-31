@@ -4,24 +4,13 @@ import { FormEvent, useEffect, useState } from "react";
 import Button from "@/components/ui/Button";
 import Card, { CardHeader } from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
-import Select from "@/components/ui/Select";
 import { PageLoader } from "@/components/ui/Spinner";
 import { adminApi } from "@/lib/api";
-import type { Category, CategoryType } from "@/types";
-
-const categoryTypes: { value: CategoryType; label: string }[] = [
-  { value: "laptop", label: "Laptop" },
-  { value: "pc", label: "PC" },
-  { value: "desktop", label: "Desktop" },
-  { value: "mobile", label: "Mobile" },
-  { value: "earbuds", label: "Earbuds" },
-  { value: "accessory", label: "Accessory" },
-];
+import type { Category } from "@/types";
 
 type CategoryForm = {
   name: string;
   slug: string;
-  type: CategoryType;
   image: File | null;
 };
 
@@ -34,13 +23,12 @@ export default function AdminCategoriesPage() {
   const [form, setForm] = useState<CategoryForm>({
     name: "",
     slug: "",
-    type: "accessory",
     image: null,
   });
 
   const [saving, setSaving] = useState(false);
 
-  // Image preview for the newly selected image
+  // Image preview for the selected image
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   async function loadCategories() {
@@ -56,7 +44,6 @@ export default function AdminCategoriesPage() {
     setForm({
       name: "",
       slug: "",
-      type: "accessory",
       image: null,
     });
 
@@ -69,7 +56,6 @@ export default function AdminCategoriesPage() {
     setForm({
       name: cat.name,
       slug: cat.slug,
-      type: cat.type,
       image: null,
     });
 
@@ -89,7 +75,7 @@ export default function AdminCategoriesPage() {
       return;
     }
 
-    // Basic frontend validation
+    // Allowed image types
     const allowedTypes = [
       "image/jpeg",
       "image/jpg",
@@ -127,39 +113,74 @@ export default function AdminCategoriesPage() {
 
     try {
       /*
-       * Category data is now sent as FormData because an image
-       * file needs to be uploaded along with the category information.
+       * Category data is sent as FormData because
+       * the category image is uploaded from the admin panel.
        */
       const formData = new FormData();
 
       formData.append("name", form.name);
       formData.append("slug", form.slug);
-      formData.append("type", form.type);
 
-      // Only append image when the admin selected one.
+      // Only upload an image if the admin selected one.
       if (form.image) {
         formData.append("image", form.image);
       }
 
-      if (editingId) {
+      if (editingId !== null) {
         await adminApi.categories.update(editingId, formData);
       } else {
         await adminApi.categories.create(formData);
       }
 
+      // Reload categories from the backend.
       await loadCategories();
+
       resetForm();
+    } catch (error) {
+      console.error("Unable to save category:", error);
+
+      if (error instanceof Error) {
+        alert(`Unable to save category: ${error.message}`);
+      } else {
+        alert("Unable to save category. Please try again.");
+      }
     } finally {
       setSaving(false);
     }
   }
 
   async function handleDelete(id: number) {
-    if (!confirm("Delete this category?")) return;
+    if (!confirm("Delete this category?")) {
+      return;
+    }
 
-    await adminApi.categories.delete(id);
+    try {
+      /*
+       * Delete the category from the backend first.
+       *
+       * Products will NOT be deleted.
+       * The backend will simply remove the category.
+       */
+      await adminApi.categories.delete(id);
 
-    setCategories((prev) => prev.filter((c) => c.id !== id));
+      /*
+       * Remove the successfully deleted category
+       * from the current frontend list.
+       */
+      setCategories((prev) =>
+        prev.filter((category) => category.id !== id),
+      );
+
+      alert("Category deleted successfully.");
+    } catch (error) {
+      console.error("Unable to delete category:", error);
+
+      if (error instanceof Error) {
+        alert(`Unable to delete category: ${error.message}`);
+      } else {
+        alert("Unable to delete category. Please try again.");
+      }
+    }
   }
 
   if (loading) {
@@ -195,7 +216,11 @@ export default function AdminCategoriesPage() {
       {showForm && (
         <Card className="mt-8 max-w-lg" padding="md">
           <CardHeader
-            title={editingId ? "Edit Category" : "New Category"}
+            title={
+              editingId !== null
+                ? "Edit Category"
+                : "New Category"
+            }
           />
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -204,15 +229,18 @@ export default function AdminCategoriesPage() {
               label="Name"
               required
               value={form.name}
-              onChange={(e) =>
+              onChange={(e) => {
+                const name = e.target.value;
+
                 setForm({
                   ...form,
-                  name: e.target.value,
-                  slug: e.target.value
+                  name,
+                  slug: name
                     .toLowerCase()
-                    .replace(/[^a-z0-9]+/g, "-"),
-                })
-              }
+                    .replace(/[^a-z0-9]+/g, "-")
+                    .replace(/^-+|-+$/g, ""),
+                });
+              }}
             />
 
             {/* Category slug */}
@@ -226,19 +254,6 @@ export default function AdminCategoriesPage() {
                   slug: e.target.value,
                 })
               }
-            />
-
-            {/* Category type */}
-            <Select
-              label="Type"
-              value={form.type}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  type: e.target.value as CategoryType,
-                })
-              }
-              options={categoryTypes}
             />
 
             {/* Category image */}
@@ -294,7 +309,7 @@ export default function AdminCategoriesPage() {
                 type="submit"
                 loading={saving}
               >
-                {editingId ? "Update" : "Create"}
+                {editingId !== null ? "Update" : "Create"}
               </Button>
 
               <Button
@@ -331,10 +346,6 @@ export default function AdminCategoriesPage() {
                 </th>
 
                 <th className="px-4 py-3 font-medium">
-                  Type
-                </th>
-
-                <th className="px-4 py-3 font-medium">
                   Actions
                 </th>
               </tr>
@@ -349,16 +360,12 @@ export default function AdminCategoriesPage() {
                   {/* Category image */}
                   <td className="px-4 py-3">
                     <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl bg-gray-100">
-                      {cat.image_url ? (
+                      {cat.image_url && (
                         <img
                           src={cat.image_url}
                           alt={cat.name}
                           className="h-full w-full object-contain p-1"
                         />
-                      ) : (
-                        <span className="text-2xl">
-                          📦
-                        </span>
                       )}
                     </div>
                   </td>
@@ -371,11 +378,6 @@ export default function AdminCategoriesPage() {
                   {/* Slug */}
                   <td className="px-4 py-3 text-muted">
                     {cat.slug}
-                  </td>
-
-                  {/* Type */}
-                  <td className="px-4 py-3 capitalize">
-                    {cat.type}
                   </td>
 
                   {/* Actions */}

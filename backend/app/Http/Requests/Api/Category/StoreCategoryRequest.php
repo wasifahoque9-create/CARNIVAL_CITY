@@ -2,9 +2,7 @@
 
 namespace App\Http\Requests\Api\Category;
 
-use App\Enums\CategoryType;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class StoreCategoryRequest extends FormRequest
 {
@@ -16,17 +14,29 @@ class StoreCategoryRequest extends FormRequest
     public function rules(): array
     {
         return [
+            /*
+             * Optional parent category.
+             * This allows categories to have subcategories
+             * in the future without hardcoding category types.
+             */
             'parent_id' => [
                 'nullable',
                 'exists:categories,id',
             ],
 
+            /*
+             * Category name entered by the admin.
+             */
             'name' => [
                 'required',
                 'string',
                 'max:255',
             ],
 
+            /*
+             * Slug is generated automatically by the controller
+             * when the admin does not provide one.
+             */
             'slug' => [
                 'nullable',
                 'string',
@@ -34,18 +44,8 @@ class StoreCategoryRequest extends FormRequest
                 'unique:categories,slug',
             ],
 
-            'type' => [
-                'required',
-                Rule::enum(CategoryType::class),
-            ],
-
             /*
              * Optional category image.
-             *
-             * Supported formats:
-             * JPEG, JPG, PNG, WebP
-             *
-             * Maximum size: 5 MB
              */
             'image' => [
                 'nullable',

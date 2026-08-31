@@ -11,22 +11,28 @@ class CategoryResource extends JsonResource
     {
         return [
             'id' => $this->id,
+
             'parent_id' => $this->parent_id,
+
             'name' => $this->name,
+
             'slug' => $this->slug,
-            'type' => $this->type,
 
             /*
-             * Category image uploaded from the admin panel.
+             * Category image.
              *
-             * Example:
-             * categories/laptop.jpg
+             * Returns the complete public URL when an image
+             * exists, otherwise returns null.
              *
-             * becomes:
-             * http://localhost:8000/storage/categories/laptop.jpg
+             * The frontend will keep the image area blank
+             * when this value is null.
              */
             'image_url' => $this->getCategoryImageUrl(),
 
+            /*
+             * Child categories are included only when the
+             * controller has loaded the "children" relationship.
+             */
             'children' => CategoryResource::collection(
                 $this->whenLoaded('children')
             ),
@@ -35,21 +41,20 @@ class CategoryResource extends JsonResource
         ];
     }
 
+    /**
+     * Get the public URL of the category image.
+     */
     private function getCategoryImageUrl(): ?string
     {
         /*
-         * If this category does not have an uploaded image,
-         * return null.
-         *
-         * The frontend will then show its existing emoji
-         * fallback.
+         * No image has been uploaded.
          */
         if (! $this->image_path) {
             return null;
         }
 
         /*
-         * If image_path already contains a complete URL,
+         * If the database already contains a complete URL,
          * return it directly.
          */
         if (
@@ -59,13 +64,19 @@ class CategoryResource extends JsonResource
             return $this->image_path;
         }
 
-        return $this->buildStorageUrl($this->image_path);
-    }
-
-    private function buildStorageUrl(string $path): string
-    {
+        /*
+         * Build the public Laravel storage URL.
+         *
+         * Example:
+         *
+         * categories/laptop.jpg
+         *
+         * becomes:
+         *
+         * http://localhost:8000/storage/categories/laptop.jpg
+         */
         return rtrim(config('app.url'), '/')
             . '/storage/'
-            . ltrim($path, '/');
+            . ltrim($this->image_path, '/');
     }
 }
