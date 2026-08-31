@@ -214,6 +214,7 @@ class OrderController extends Controller
                     'payment',
                 ])
                 ->latest();
+
         /*
          * Customer only sees their own orders.
          * Admin sees all orders.
@@ -254,6 +255,78 @@ class OrderController extends Controller
                 'total' =>
                     $orders->total(),
             ],
+        ]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Guest Order Tracking
+    |--------------------------------------------------------------------------
+    |
+    | Guest customers can view only their own order.
+    | The X-Guest-Cart-Token header must match
+    | the guest_token stored with the order.
+    |
+    */
+
+    public function guestShow(
+        Request $request,
+        Order $order
+    ): JsonResponse {
+        /*
+         * Get guest token from request header.
+         */
+        $guestToken =
+            $this->getGuestToken(
+                $request
+            );
+
+        /*
+         * Token is required for guest tracking.
+         */
+        if (! $guestToken) {
+            return response()->json([
+                'message' =>
+                    'Guest cart token is required.',
+            ], 401);
+        }
+
+        /*
+         * Make sure this order belongs to
+         * the guest making the request.
+         */
+        if (
+            ! $order->guest_token ||
+            ! hash_equals(
+                (string) $order->guest_token,
+                (string) $guestToken
+            )
+        ) {
+            return response()->json([
+                'message' =>
+                    'Order not found.',
+            ], 404);
+        }
+
+        /*
+         * Load complete order information.
+         */
+        $order->load([
+            'user',
+            'items.product.images',
+            'items.variant',
+            'shippingAddress',
+            'payment',
+        ]);
+
+        return response()->json([
+            'message' =>
+                'Order retrieved successfully.',
+
+            'data' =>
+                new OrderResource(
+                    $order
+                ),
         ]);
     }
 
@@ -373,4 +446,81 @@ class OrderController extends Controller
                 ),
         ]);
     }
+    /*
+|--------------------------------------------------------------------------
+| Admin Update Delivery Tracking
+|--------------------------------------------------------------------------
+*/
+
+public function updateDeliveryTracking(
+    Request $request,
+    Order $order
+): JsonResponse {
+    $validated = $request->validate([
+        'delivery_person_name' => [
+            'nullable',
+            'string',
+            'max:255',
+        ],
+
+        'delivery_person_phone' => [
+            'nullable',
+            'string',
+            'max:50',
+        ],
+
+        'tracking_number' => [
+            'nullable',
+            'string',
+            'max:255',
+        ],
+
+        'delivery_status' => [
+            'nullable',
+            'string',
+            'max:100',
+        ],
+
+        'delivery_note' => [
+            'nullable',
+            'string',
+        ],
+    ]);
+
+    $order->update([
+        'delivery_person_name' =>
+            $validated['delivery_person_name'] ?? null,
+
+        'delivery_person_phone' =>
+            $validated['delivery_person_phone'] ?? null,
+
+        'tracking_number' =>
+            $validated['tracking_number'] ?? null,
+
+        'delivery_status' =>
+            $validated['delivery_status'] ?? null,
+
+        'delivery_note' =>
+            $validated['delivery_note'] ?? null,
+
+        'delivery_updated_at' =>
+            now(),
+    ]);
+
+    $order->load([
+        'user',
+        'items.product.images',
+        'items.variant',
+        'shippingAddress',
+        'payment',
+    ]);
+
+    return response()->json([
+        'message' =>
+            'Delivery tracking updated successfully.',
+
+        'data' =>
+            new OrderResource($order),
+    ]);
+}
 }
