@@ -31,27 +31,30 @@ export default function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50">
-      {/* Decorative top line */}
-<div className="h-0.5 bg-secondary" />
-      <div className="border-b border-white/10 bg-gradient-to-r from-primary via-primary to-primary-light text-white shadow-xl">
-<div className="flex h-16 w-full items-center justify-between gap-4 px-4"> 
-    {/* Logo + Brand Name */}
-<Link
-  href="/"
-  onClick={() => setMenuOpen(false)}
-  className="flex shrink-0 items-center gap-2"
->
-  <img
-    src="/logo.png"
-    alt="Carnival City Logo"
-    className="h-12 w-auto object-contain"
-  />
+  <header className="sticky top-0 z-50">
+    {/* Decorative top line */}
+    <div className="h-0.5 bg-secondary" />
 
-  <span className="text-xl font-bold text-white whitespace-nowrap">
-    Carnival City
-  </span>
-</Link>
+    {/* Main navbar */}
+    <div className="border-b border-gray-200 bg-[#D9E6F2] shadow-sm">
+      <div className="flex h-16 w-full items-center justify-between gap-4 px-4">
+
+        {/* Logo + Brand Name */}
+        <Link
+          href="/"
+          onClick={() => setMenuOpen(false)}
+          className="flex shrink-0 items-center gap-2"
+        >
+          <img
+            src="/logo.png"
+            alt="Carnival City Logo"
+            className="h-12 w-auto object-contain"
+          />
+
+          <span className="text-xl font-bold text-[#172554] whitespace-nowrap">
+            Carnival City
+          </span>
+        </Link>
 
           {/* Desktop search */}
           <form
@@ -85,8 +88,7 @@ export default function Header() {
 
             <button
               type="submit"
-              className="rounded-lg bg-secondary px-5 py-2.5 text-sm font-bold text-white shadow-sm transition duration-200 hover:bg-secondary-dark active:scale-95"
-            >
+className="rounded-lg bg-[#121358] px-5 py-2.5 text-sm font-bold text-white shadow-sm transition duration-200 hover:bg-[#1b1d78] active:scale-95"            >
               Search
             </button>
           </form>
@@ -95,22 +97,19 @@ export default function Header() {
           <nav className="hidden items-center gap-1 lg:flex">
             <Link
               href="/"
-              className="rounded-lg px-3 py-2 text-sm font-medium text-white/90 transition hover:bg-white/10 hover:text-secondary"
-            >
+className="rounded-lg px-3 py-2 text-sm font-medium text-[#172554] transition hover:bg-[#dbeafe] hover:text-secondary"            >
               Home
             </Link>
 
             <Link
               href="/about"
-              className="rounded-lg px-3 py-2 text-sm font-medium text-white/90 transition hover:bg-white/10 hover:text-secondary"
-            >
+className="rounded-lg px-3 py-2 text-sm font-medium text-[#172554] transition hover:bg-[#dbeafe] hover:text-secondary"            >
               About
             </Link>
 
             <Link
               href="/cart"
-              className="group relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-white/90 transition hover:bg-white/10 hover:text-secondary"
-            >
+className="group relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-[#172554] transition hover:bg-[#c7dced] hover:text-secondary"            >
               <svg
                 className="h-5 w-5 transition-transform group-hover:scale-110"
                 fill="none"
@@ -135,7 +134,7 @@ export default function Header() {
             {!isAuthenticated && (
               <Link
                 href="/track-order"
-                className="rounded-lg px-3 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-secondary"
+                className="rounded-lg px-3 py-2 text-sm font-semibold text-[#172554] transition hover:bg-white/10 hover:text-secondary"
               >
                 Track Order
               </Link>
@@ -145,8 +144,7 @@ export default function Header() {
               <>
                 <Link
                   href="/orders"
-                  className="rounded-lg px-3 py-2 text-sm font-medium text-white/90 transition hover:bg-white/10 hover:text-secondary"
-                >
+className="rounded-lg px-3 py-2 text-sm font-medium text-[#172554] transition hover:bg-[#dbeafe] hover:text-secondary"                >
                   Orders
                 </Link>
 
@@ -184,15 +182,13 @@ export default function Header() {
               <>
                 <Link
                   href="/login"
-                  className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 hover:text-secondary"
-                >
+className="rounded-lg px-4 py-2 text-sm font-semibold text-[#172554] transition hover:bg-[#c7dced] hover:text-secondary"                >
                   Login
                 </Link>
 
                 <Link
                   href="/register"
-                  className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-black/10 transition duration-200 hover:-translate-y-0.5 hover:bg-secondary-dark hover:shadow-xl active:translate-y-0"
-                >
+className="rounded-xl bg-[#121358] px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-black/10 transition duration-200 hover:-translate-y-0.5 hover:bg-[#1b1d78] hover:shadow-xl active:translate-y-0"                >
                   Sign Up
                 </Link>
               </>
@@ -234,8 +230,7 @@ export default function Header() {
 
         {/* Mobile navigation */}
         {menuOpen && (
-          <div className="border-t border-white/10 bg-primary/95 px-4 pb-5 pt-4 shadow-2xl backdrop-blur-xl lg:hidden">
-            <div className="mx-auto max-w-7xl">
+<div className="border-t border-gray-200 bg-[#EEF4FA] px-4 pb-5 pt-4 shadow-lg lg:hidden">            <div className="mx-auto max-w-7xl">
               <form
                 onSubmit={handleSearch}
                 className="mb-5 flex rounded-xl bg-white p-1 shadow-lg"
@@ -349,8 +344,7 @@ export default function Header() {
                     <button
                       type="button"
                       onClick={handleLogout}
-                      className="rounded-xl px-4 py-3 text-left text-sm font-semibold text-red-200 transition hover:bg-red-500/15"
-                    >
+className="rounded-xl px-4 py-2 text-sm font-semibold text-[#172554] transition hover:bg-[#dbeafe] hover:text-secondary"                    >
                       Logout
                     </button>
                   </>

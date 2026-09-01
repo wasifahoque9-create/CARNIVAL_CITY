@@ -22,8 +22,7 @@ export default function Navbar() {
   };
 
   return (
-    <header className="fixed top-0 left-0 w-full z-50 bg-white border-b shadow-sm">
-
+<header className="fixed top-0 left-0 w-full z-50 bg-[#EEF4FA] border-b shadow-sm">
 <div className="flex items-center gap-3 px-4 h-20">
 
  {/* LOGO */}
@@ -32,7 +31,7 @@ export default function Navbar() {
   className="flex items-center shrink-0 h-20 w-[140px]"
 >
   <img
-    src="/CCBM Logo.png"
+    src="/logo.png"
     alt="CCBM Logo"
     className="w-full h-full object-contain"
   />
@@ -40,8 +39,7 @@ export default function Navbar() {
 
 
         {/* DESKTOP MENU */}
-        <nav className="hidden md:flex items-center gap-5 text-sm font-medium text-gray-700 flex-1">
-
+<nav className="hidden md:flex items-center gap-5 text-sm font-medium text-[#172554] flex-1">
           <Link href="/">Home</Link>
           <Link href="/shop">Shop</Link>
           <Link href="/categories">Categories</Link>
@@ -132,8 +130,7 @@ export default function Navbar() {
       {/* MOBILE MENU */}
       {menuOpen && (
 
-        <div className="md:hidden bg-white border-t px-4 py-4 space-y-3">
-
+<div className="md:hidden bg-[#EEF4FA] border-t px-4 py-4 space-y-3">
 
           <Link href="/" className="block">
             Home
