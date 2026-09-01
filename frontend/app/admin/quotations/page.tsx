@@ -321,7 +321,7 @@ export default function AdminQuotationsPage() {
 
       await quotationApi.downloadPdf(
         quotationId,
-        true,
+      
       );
     } catch (err) {
       if (err instanceof ApiError) {

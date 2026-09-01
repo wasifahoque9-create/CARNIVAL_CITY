@@ -2,6 +2,7 @@ import type {
   Address,
   ApiMessage,
   AuthResponse,
+    Banner,
   Cart,
   Category,
   PaginationMeta,
@@ -18,17 +19,6 @@ import type {
   User,
 } from "@/types";
 
-type Banner = {
-  id: number;
-  title?: string;
-  subtitle?: string | null;
-  image_path: string | null;
-  link_url?: string | null;
-  is_active?: boolean;
-  sort_order?: number;
-  created_at?: string;
-  updated_at?: string;
-};
 
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ||
@@ -419,7 +409,7 @@ export function formatOrderNumber(
 */
 
 export function getBannerImage(
-  banner: { image_path: string | null },
+  banner: { image_path?: string | null },
 ): string | null {
   if (!banner.image_path) {
     return null;
@@ -514,6 +504,16 @@ export const authApi = {
   }) =>
     api<AuthResponse>(
       "/auth/login",
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+    ),
+      google: (data: {
+    id_token: string;
+  }) =>
+    api<AuthResponse>(
+      "/auth/google",
       {
         method: "POST",
         body: JSON.stringify(data),
@@ -1664,6 +1664,7 @@ export type BusinessSettings = {
   whatsapp_number?: string | null;
   business_address?: string | null;
   currency: string;
+  delivery_charge: number;
   facebook_url?: string | null;
   instagram_url?: string | null;
   created_at?: string;
@@ -1680,6 +1681,7 @@ export type BusinessSettingsPayload = {
   currency: string;
   facebook_url?: string | null;
   instagram_url?: string | null;
+  delivery_charge: number;
 };
 
 export const businessSettingsApi = {

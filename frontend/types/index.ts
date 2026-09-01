@@ -37,6 +37,9 @@ export interface User {
   name: string;
   email: string;
   phone?: string | null;
+  google_id?: string | null;
+  phone_verified_at?: string | null;
+email_verified_at?: string | null;
   role: UserRole;
   addresses?: Address[];
   created_at?: string;
@@ -72,6 +75,25 @@ export interface ProductImage {
   url?: string;
   thumbnail_url?: string;
   is_primary: boolean;
+}
+export interface Banner {
+  id: number;
+  tag: string | null;
+  title: string;
+  highlight: string | null;
+  description: string | null;
+  price: number | null;
+  discount_text: string | null;
+  cta_text: string | null;
+  cta_link: string | null;
+  secondary_cta_text: string | null;
+  secondary_cta_link: string | null;
+  image_path: string | null;
+  fallback_emoji: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface ProductVariant {
@@ -341,6 +363,9 @@ export interface Order {
   guest_address_line2?:
     | string
     | null;
+    guest_area?:
+  | string
+  | null;
 
   guest_city?:
     | string
@@ -357,7 +382,9 @@ export interface Order {
   guest_token?:
     | string
     | null;
-
+guest_notes?:
+  | string
+  | null;
   /*
    * Relations
    */

@@ -688,10 +688,7 @@ try {
       setDownloadingQuotationPdf(true);
       setError("");
 
-      await quotationApi.downloadPdf(
-        quotationPdfId,
-        false,
-      );
+      await quotationApi.downloadPdf(quotationPdfId);
     } catch (error) {
       console.error(
         "Unable to download quotation PDF:",

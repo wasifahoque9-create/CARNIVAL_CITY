@@ -134,11 +134,7 @@ export default function AdminBannersPage() {
     setImageFile(null);
     setImagePreview(
       getBannerImage({
-        image_path:
-          banner.image_path ??
-          banner.image ??
-          banner.image_url ??
-          null,
+       image_path: banner.image_path ?? null,
       }),
     );
     setFormError("");
@@ -266,11 +262,7 @@ export default function AdminBannersPage() {
               <tbody>
                 {banners.map((banner) => {
                   const imageUrl = getBannerImage({
-                    image_path:
-                      banner.image_path ??
-                      banner.image ??
-                      banner.image_url ??
-                      null,
+                    image_path: banner.image_path ?? null,
                   });
 
                   return (

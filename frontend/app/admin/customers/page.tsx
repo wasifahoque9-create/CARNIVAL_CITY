@@ -44,8 +44,7 @@ export default function CustomersPage() {
     try {
       const response = await adminApi.customers.list({ page, search });
       setCustomers(response.data);
-      setLastPage(response.last_page ?? 1);
-    } catch (err) {
+setLastPage(response.meta.last_page ?? 1);    } catch (err) {
       console.error("Failed to load customers", err);
     } finally {
       setLoading(false);
@@ -219,13 +218,13 @@ export default function CustomersPage() {
                       <span className="text-slate-400">—</span>
                     )}
                   </td>
-                  <td className="px-5 py-3 text-slate-500">
-                    {new Date(customer.created_at).toLocaleDateString("en-GB", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    })}
-                  </td>
+                 <td className="px-5 py-3 text-slate-500">
+  {new Date(customer.created_at ?? "").toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  })}
+</td>
                   <td className="px-5 py-3">
                     <div className="flex items-center justify-end gap-2">
                       <button

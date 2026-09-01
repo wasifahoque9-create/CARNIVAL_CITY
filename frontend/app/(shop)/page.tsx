@@ -25,24 +25,8 @@ import "swiper/css/navigation";
 import ProductsByCategory from "@/components/products/ProductsByCategory";
 import { PageLoader } from "@/components/ui/Spinner";
 import { bannerApi, catalogApi, getBannerImage } from "@/lib/api";
-import type { Category } from "@/types";
+import type { Banner, Category } from "@/types";
 
-type Banner = {
-  id: number | string;
-  tag?: string | null;
-  title: string;
-  highlight?: string | null;
-  description?: string | null;
-  price?: number | string | null;
-  discount_text?: string | null;
-  fallback_emoji?: string | null;
-  cta_link?: string | null;
-  cta_text?: string | null;
-  secondary_cta_link?: string | null;
-  secondary_cta_text?: string | null;
-  image?: string | null;
-  image_path?: string | null;
-};
 
 const categoryIcons: Record<string, string> = {
   laptop: "??",
@@ -659,7 +643,6 @@ export default function HomePage() {
             >
               {categories.map((category) => {
                 const categoryType = (
-                  category.type ??
                   category.slug ??
                   ""
                 ).toLowerCase();
@@ -762,4 +745,6 @@ function ServiceItem({ icon, title, description }: ServiceItemProps) {
     </div>
   );
 }
+
+
 
