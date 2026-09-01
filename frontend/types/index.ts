@@ -32,6 +32,7 @@ export type ReviewStatus =
   | "hidden";
 
 export interface User {
+  password_set: any;
   id: number;
   name: string;
   email: string;

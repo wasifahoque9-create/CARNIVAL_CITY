@@ -18,6 +18,12 @@ class User extends Authenticatable implements MustVerifyEmail
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
 
+    /*
+    |--------------------------------------------------------------------------
+    | Mass Assignable Attributes
+    |--------------------------------------------------------------------------
+    */
+
     protected $fillable = [
         'name',
         'email',
@@ -27,12 +33,25 @@ class User extends Authenticatable implements MustVerifyEmail
         'role',
         'email_verified_at',
         'phone_verified_at',
+        'password_set',
     ];
+
+    /*
+    |--------------------------------------------------------------------------
+    | Hidden Attributes
+    |--------------------------------------------------------------------------
+    */
 
     protected $hidden = [
         'password',
         'remember_token',
     ];
+
+    /*
+    |--------------------------------------------------------------------------
+    | Attribute Casting
+    |--------------------------------------------------------------------------
+    */
 
     protected function casts(): array
     {
@@ -41,13 +60,46 @@ class User extends Authenticatable implements MustVerifyEmail
             'phone_verified_at' => 'datetime',
             'password' => 'hashed',
             'role' => UserRole::class,
+            'password_set' => 'boolean',
         ];
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Helper Methods
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Check if user is an administrator.
+     */
     public function isAdmin(): bool
     {
         return $this->role === UserRole::Admin;
     }
+
+    /**
+     * Check whether this account is connected to Google.
+     */
+    public function hasGoogleAccount(): bool
+    {
+        return !empty($this->google_id);
+    }
+
+    /**
+     * Check whether the user has explicitly created
+     * a local account password.
+     */
+    public function hasPassword(): bool
+    {
+        return $this->password_set;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Relationships
+    |--------------------------------------------------------------------------
+    */
 
     public function addresses(): HasMany
     {
@@ -69,8 +121,14 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(Review::class);
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Email Verification
+    |--------------------------------------------------------------------------
+    */
+
     public function sendEmailVerificationNotification(): void
     {
-        $this->notify(new CustomVerifyEmail);
+        $this->notify(new CustomVerifyEmail());
     }
 }

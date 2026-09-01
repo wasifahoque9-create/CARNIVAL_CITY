@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\Admin\BannerController as AdminBannerController;
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BannerController;
@@ -23,34 +24,81 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::prefix('auth')->group(function () {
+    /*
+    |--------------------------------------------------------------------------
+    | Public Authentication Routes
+    |--------------------------------------------------------------------------
+    */
+
+    // Register with email + password
     Route::post('/register', [
         AuthController::class,
         'register',
     ]);
 
+    // Login with email + password
     Route::post('/login', [
         AuthController::class,
         'login',
     ]);
 
+    // Forgot password
     Route::post('/forgot-password', [
         AuthController::class,
         'forgotPassword',
     ]);
 
+    // Reset password
+    Route::post('/reset-password', [
+        AuthController::class,
+        'resetPassword',
+    ]);
+
+    // Verify email
     Route::post('/verify-email', [
         AuthController::class,
         'verifyEmail',
     ]);
 
-    Route::middleware('auth:sanctum')
-        ->group(function () {
-            Route::post('/logout', [
-                AuthController::class,
-                'logout',
-            ]);
-        });
+    // Google login / registration
+    Route::post('/google', [
+        AuthController::class,
+        'googleLogin',
+    ]);
+
+    // Send phone OTP
+    Route::post('/send-otp', [
+        AuthController::class,
+        'sendOtp',
+    ]);
+
+    // Verify phone OTP
+    Route::post('/verify-otp', [
+        AuthController::class,
+        'verifyOtp',
+    ]);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Protected Authentication Routes
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware('auth:sanctum')->group(function () {
+
+        // Logout current authenticated session
+        Route::post('/logout', [
+            AuthController::class,
+            'logout',
+        ]);
+
+        Route::post('/set-password', [
+            AuthController::class,
+            'setPassword',
+        ]);
+    });
 });
+
 
 /*
 |--------------------------------------------------------------------------
@@ -61,21 +109,30 @@ Route::prefix('auth')->group(function () {
 Route::middleware('auth:sanctum')
     ->prefix('users')
     ->group(function () {
+
+        // Current authenticated user
         Route::get('/me', [
             UserController::class,
             'me',
         ]);
-
+        // Update profile
         Route::put('/profile', [
             UserController::class,
             'updateProfile',
         ]);
 
+        /*
+         * Change existing password.
+         *
+         * This should normally be used by users who already have
+         * password_set = true.
+         */
         Route::put('/change-password', [
             UserController::class,
             'changePassword',
         ]);
     });
+
 
 /*
 |--------------------------------------------------------------------------
@@ -96,18 +153,23 @@ Route::middleware([
     'update',
 ]);
 
+// Public banner list
+Route::get('/banners', [
+    BannerController::class,
+    'index',
+]);
+
 /*
 |--------------------------------------------------------------------------
 | Product Routes
 |--------------------------------------------------------------------------
 */
-
-// Public storefront
+// Public products
 Route::get('/products', [
     ProductController::class,
     'index',
 ]);
-
+// Public single product
 Route::get('/products/{product}', [
     ProductController::class,
     'show',
@@ -151,12 +213,11 @@ Route::middleware([
 | Category Routes
 |--------------------------------------------------------------------------
 */
-
+// Public categories
 Route::get('/categories', [
     CategoryController::class,
     'index',
 ]);
-
 Route::middleware([
     'auth:sanctum',
     'admin',
@@ -190,21 +251,25 @@ Route::middleware([
 
 Route::prefix('cart')
     ->group(function () {
+
+        // Get current cart
         Route::get('/', [
             CartController::class,
             'index',
         ]);
 
+        // Add item to cart
         Route::post('/add', [
             CartController::class,
             'add',
         ]);
-
+        // Update cart item
         Route::put('/update', [
             CartController::class,
             'update',
         ]);
 
+        // Remove cart item
         Route::delete('/remove', [
             CartController::class,
             'remove',
@@ -215,6 +280,7 @@ Route::prefix('cart')
             'clear',
         ]);
     });
+
 
 /*
 |--------------------------------------------------------------------------
@@ -253,22 +319,29 @@ Route::get('/guest/orders/{order}', [
 Route::middleware('auth:sanctum')
     ->prefix('orders')
     ->group(function () {
+        // Create order
+        Route::post('/', [
+            OrderController::class,
+            'store',
+        ]);
+
+        // Current user's orders
         Route::get('/', [
             OrderController::class,
             'index',
         ]);
-
+        // Single order
         Route::get('/{order}', [
             OrderController::class,
             'show',
         ]);
 
+        // Cancel order
         Route::put('/{order}/cancel', [
             OrderController::class,
             'cancel',
         ]);
     });
-
 /*
 |--------------------------------------------------------------------------
 | Admin Order Management
@@ -404,29 +477,32 @@ Route::middleware('auth:sanctum')
 Route::middleware('auth:sanctum')
     ->prefix('payments')
     ->group(function () {
+
+        // Checkout
         Route::post('/checkout', [
             PaymentController::class,
             'checkout',
         ]);
-
+        // Payment history
         Route::get('/history', [
             PaymentController::class,
             'history',
         ]);
 
+        // Single payment
         Route::get('/{payment}', [
             PaymentController::class,
             'show',
         ]);
     });
 
+
 /*
 |--------------------------------------------------------------------------
 | Review Routes
 |--------------------------------------------------------------------------
 */
-
-// Authenticated customer review
+// Create review
 Route::post('/reviews', [
     ReviewController::class,
     'store',
@@ -451,6 +527,14 @@ Route::middleware([
 |--------------------------------------------------------------------------
 | Admin Routes
 |--------------------------------------------------------------------------
+|
+| All admin-only endpoints are protected by:
+|
+| - auth:sanctum
+| - admin middleware
+|
+| Every admin route uses the /admin prefix.
+|
 */
 
 Route::middleware([
@@ -459,10 +543,88 @@ Route::middleware([
 ])
     ->prefix('admin')
     ->group(function () {
+
+        /*
+        |--------------------------------------------------------------------------
+        | Dashboard
+        |--------------------------------------------------------------------------
+        */
         Route::get('/dashboard', [
             AdminController::class,
             'dashboard',
         ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Products
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get('/products', [
+            ProductController::class,
+            'adminIndex',
+        ]);
+
+        Route::get('/products/{product}', [
+            ProductController::class,
+            'adminShow',
+        ]);
+
+        Route::post('/products', [
+            ProductController::class,
+            'store',
+        ]);
+
+        Route::put('/products/{product}', [
+            ProductController::class,
+            'update',
+        ]);
+
+        Route::delete('/products/{product}', [
+            ProductController::class,
+            'destroy',
+        ]);
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Categories
+        |--------------------------------------------------------------------------
+        */
+
+        Route::post('/categories', [
+            CategoryController::class,
+            'store',
+        ]);
+
+        Route::put('/categories/{category}', [
+            CategoryController::class,
+            'update',
+        ]);
+
+        Route::delete('/categories/{category}', [
+            CategoryController::class,
+            'destroy',
+        ]);
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Orders
+        |--------------------------------------------------------------------------
+        */
+
+        Route::put('/orders/{order}/status', [
+            OrderController::class,
+            'updateStatus',
+        ]);
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Reviews
+        |--------------------------------------------------------------------------
+        */
 
         Route::get('/reviews', [
             AdminController::class,
@@ -471,6 +633,7 @@ Route::middleware([
     });
 
 Route::get('/banners', [BannerController::class, 'index']);
+
 /*
 |--------------------------------------------------------------------------
 | Admin Banner Routes
@@ -501,5 +664,36 @@ Route::middleware([
         Route::delete('/banners/{banner}', [
             BannerController::class,
             'destroy',
+        ]);
+
+        Route::put('/reviews/{review}/moderate', [
+            ReviewController::class,
+            'moderate',
+        ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Customers
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get('/customers', [
+            AdminController::class,
+            'customers',
+        ]);
+
+        Route::post('/customers', [
+            AdminController::class,
+            'storeCustomer',
+        ]);
+
+        Route::put('/customers/{customer}', [
+            AdminController::class,
+            'updateCustomer',
+        ]);
+
+        Route::delete('/customers/{customer}', [
+            AdminController::class,
+            'destroyCustomer',
         ]);
     });
