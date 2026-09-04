@@ -18,6 +18,7 @@ import type { Swiper as SwiperType } from "swiper";
 import { Autoplay, Navigation } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/navigation";
+
 import {
   ChevronLeft,
   ChevronRight,
@@ -30,6 +31,12 @@ import type { Category } from "@/types";
 
 type CategoryWithImage = Category & {
   image_url?: string | null;
+  subcategories?: Category[];
+  children?: Category[];
+};
+
+type Subcategory = CategoryWithImage & {
+  parent_id: number;
 };
 
 type PromoImageProps = {
@@ -133,9 +140,15 @@ const heroSlides = [
 ];
 
 export default function HomePage() {
-  const [categories, setCategories] = useState<Category[]>(
-    [],
-  );
+  /*
+   * The API returns main categories with their subcategories
+   * nested inside them.
+   *
+   * The customer-facing "Shop by Category" section should
+   * display the subcategories, not the main categories.
+   */
+  const [subcategories, setSubcategories] =
+    useState<Subcategory[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -161,9 +174,55 @@ export default function HomePage() {
         const categoryData =
           await catalogApi.getCategories();
 
-        if (pageIsActive) {
-          setCategories(categoryData);
+        if (!pageIsActive) {
+          return;
         }
+
+        /*
+         * The backend returns main categories.
+         *
+         * Each main category contains either:
+         * - subcategories[]
+         * - children[]
+         *
+         * Extract those nested categories and use them
+         * as the customer-facing Shop by Category cards.
+         */
+        const extractedSubcategories: Subcategory[] = [];
+
+        categoryData.forEach((mainCategory) => {
+          const category =
+            mainCategory as CategoryWithImage;
+
+          const nestedCategories =
+            Array.isArray(category.subcategories)
+              ? category.subcategories
+              : Array.isArray(category.children)
+                ? category.children
+                : [];
+
+          nestedCategories.forEach(
+            (subcategory) => {
+              if (
+                subcategory &&
+                subcategory.id !== undefined &&
+                subcategory.parent_id !== null &&
+                subcategory.parent_id !== undefined
+              ) {
+                extractedSubcategories.push({
+                  ...(subcategory as Subcategory),
+                  parent_id:
+                    Number(subcategory.parent_id) ||
+                    Number(category.id),
+                });
+              }
+            },
+          );
+        });
+
+        setSubcategories(
+          extractedSubcategories,
+        );
       } catch (error) {
         console.error(
           "Unable to load categories:",
@@ -195,28 +254,28 @@ export default function HomePage() {
 
   /*
    * Calculate the number of visible category cards
-   * based on the actual number of categories.
+   * based on the actual number of subcategories.
    *
    * This prevents empty space when there are fewer
-   * than 6 categories on desktop.
+   * than 6 subcategories on desktop.
    */
   const desktopCategorySlides = Math.min(
-    categories.length,
+    subcategories.length,
     6,
   );
 
   const tabletCategorySlides = Math.min(
-    categories.length,
+    subcategories.length,
     4.2,
   );
 
   const mobileCategorySlides = Math.min(
-    categories.length,
+    subcategories.length,
     3.2,
   );
 
   const smallMobileCategorySlides = Math.min(
-    categories.length,
+    subcategories.length,
     2.2,
   );
 
@@ -566,7 +625,7 @@ export default function HomePage() {
           </div>
         )}
 
-        {categories.length > 0 ? (
+        {subcategories.length > 0 ? (
           <div className="relative">
             <Swiper
               modules={[Navigation]}
@@ -622,64 +681,66 @@ export default function HomePage() {
               }}
               className="category-swiper !pb-1 !pl-1 !pr-1"
             >
-              {categories.map((category) => {
-                /*
-                 * Category image comes from the backend.
-                 *
-                 * If no image was uploaded, image_url should
-                 * be null. In that case we intentionally render
-                 * nothing inside the image container.
-                 */
-                const categoryImageUrl = (
-                  category as CategoryWithImage
-                ).image_url
-                  ? (
-                      category as CategoryWithImage
-                    ).image_url
-                  : null;
+              {subcategories.map(
+                (subcategory) => {
+                  /*
+                   * The image, name and slug here all belong
+                   * to the SUBCATEGORY.
+                   */
+                  const categoryImageUrl =
+                    subcategory.image_url
+                      ? subcategory.image_url
+                      : null;
 
-                return (
-                  <SwiperSlide
-                    key={category.id}
-                    className="!h-auto"
-                  >
-                    <Link
-                      href={`/categories/${category.slug}`}
-                      className="group relative flex h-[220px] w-full flex-col items-center overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm transition duration-300 hover:-translate-y-1 hover:border-[#F59E0B]/50 hover:shadow-lg sm:p-4"
+                  return (
+                    <SwiperSlide
+                      key={subcategory.id}
+                      className="!h-auto"
                     >
-                      {/* Decorative circle */}
-                      <div className="pointer-events-none absolute -right-8 -top-8 h-20 w-20 rounded-full bg-[#F59E0B]/10 transition duration-300 group-hover:scale-150" />
+                      <Link
+                        href={`/categories/${subcategory.slug}`}
+                        className="group relative flex h-[220px] w-full flex-col items-center overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm transition duration-300 hover:-translate-y-1 hover:border-[#F59E0B]/50 hover:shadow-lg"
+                      >
+                        {/* Decorative circle */}
+                        <div className="pointer-events-none absolute -right-8 -top-8 h-20 w-20 rounded-full bg-[#F59E0B]/10 transition duration-300 group-hover:scale-150" />
 
-                      {/* Category image */}
-                      <div className="relative mx-auto flex h-17 w-17 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#121358]/5 transition duration-300 group-hover:scale-105 group-hover:bg-white">
-                        {categoryImageUrl && (
-                          <img
-                            src={categoryImageUrl}
-                            alt={category.name}
-                            className="h-full w-full object-contain p-2"
-                            onError={(event) => {
-                              event.currentTarget.style.display =
-                                "none";
-                            }}
-                          />
-                        )}
-                      </div>
+                        {/* Subcategory image */}
+                        <div className="relative mx-auto flex h-17 w-17 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#121358]/5 transition duration-300 group-hover:scale-105 group-hover:bg-white">
+                          {categoryImageUrl && (
+                            <img
+                              src={
+                                categoryImageUrl
+                              }
+                              alt={
+                                subcategory.name
+                              }
+                              className="h-full w-full object-contain p-2"
+                              onError={(
+                                event,
+                              ) => {
+                                event.currentTarget.style.display =
+                                  "none";
+                              }}
+                            />
+                          )}
+                        </div>
 
-                      {/* Category name */}
-                      <span className="relative mt-4 flex h-10 w-full items-center justify-center text-sm font-bold leading-5 text-slate-800 transition group-hover:text-[#121358]">
-                        <span className="line-clamp-2">
-                          {category.name}
+                        {/* Subcategory name */}
+                        <span className="relative mt-4 flex h-10 w-full items-center justify-center text-sm font-bold leading-5 text-slate-800 transition group-hover:text-[#121358]">
+                          <span className="line-clamp-2">
+                            {subcategory.name}
+                          </span>
                         </span>
-                      </span>
 
-                      {/* Bottom text */}
-                      <span className="relative mt-2 inline-block text-xs font-semibold text-slate-400 transition group-hover:text-[#F59E0B]">
-                        Explore products
-                      </span>
-                    </Link>
-                  </SwiperSlide>
-                );
-              })}
+                        {/* Bottom text */}
+                        <span className="relative mt-2 inline-block text-xs font-semibold text-slate-400 transition group-hover:text-[#F59E0B]">
+                          Explore products
+                        </span>
+                      </Link>
+                    </SwiperSlide>
+                  );
+                },
+              )}
             </Swiper>
 
             {/* Left arrow */}

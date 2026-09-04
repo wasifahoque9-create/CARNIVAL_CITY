@@ -47,7 +47,7 @@ import {
   getVariantLabel,
 } from "@/lib/api";
 
-import { useCart } from "@/lib/cart"; // ✅ added
+import { useCart } from "@/lib/cart";
 
 import type {
   Product,
@@ -251,7 +251,7 @@ export default function ProductDetailPage() {
     ? params.slug[0]
     : String(params.slug ?? "");
 
-  const { refreshCart } = useCart(); // ✅ added
+  const { refreshCart } = useCart();
 
   const [product, setProduct] =
     useState<Product | null>(null);
@@ -385,7 +385,7 @@ export default function ProductDetailPage() {
         quantity,
       });
 
-      await refreshCart(); // ✅ added — syncs Header's cart count instantly
+      await refreshCart();
 
       setCartNotice({
         type: "success",
@@ -594,8 +594,8 @@ export default function ProductDetailPage() {
         <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
           {/* Product gallery */}
           <div>
-            <div className="relative overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm sm:p-7">
-              <div className="absolute left-6 top-6 z-10">
+            <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-5">
+              <div className="absolute left-4 top-4 z-10 sm:left-5 sm:top-5">
                 {inStock ? (
                   <span className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-bold text-emerald-700">
                     <FaCheckCircle />
@@ -608,14 +608,14 @@ export default function ProductDetailPage() {
                 )}
               </div>
 
-              <div className="aspect-square overflow-hidden rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100">
+              <div className="h-[360px] overflow-hidden rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 sm:h-[420px] lg:h-[460px]">
                 <SafeProductImage
                   src={
                     activeImage ||
                     getProductImage(product)
                   }
                   alt={product.name}
-                  className="object-contain p-4 transition duration-500 hover:scale-105 sm:p-8"
+                  className="object-contain p-3 transition duration-500 hover:scale-105 sm:p-6"
                 />
               </div>
             </div>
@@ -732,10 +732,14 @@ export default function ProductDetailPage() {
               </p>
             </div>
 
+            {/* Summernote HTML description */}
             {product.description && (
-              <p className="mt-6 text-sm leading-7 text-slate-600">
-                {product.description}
-              </p>
+              <div
+                className="prose prose-sm mt-6 max-w-none text-slate-600"
+                dangerouslySetInnerHTML={{
+                  __html: product.description,
+                }}
+              />
             )}
 
             {hasVariants && (
@@ -1154,7 +1158,10 @@ export default function ProductDetailPage() {
 
                             <div className="mt-5 flex gap-1">
                               {[
-                                1, 2, 3, 4,
+                                1,
+                                2,
+                                3,
+                                4,
                                 5,
                               ].map(
                                 (star) => (

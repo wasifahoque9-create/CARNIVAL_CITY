@@ -3,29 +3,46 @@
 namespace App\Http\Requests\Api\Category;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreCategoryRequest extends FormRequest
 {
+    /**
+     * Determine whether the user is authorized
+     * to make this request.
+     */
     public function authorize(): bool
     {
         return true;
     }
 
+    /**
+     * Get the validation rules that apply to the request.
+     */
     public function rules(): array
     {
         return [
             /*
-             * Optional parent category.
-             * This allows categories to have subcategories
-             * in the future without hardcoding category types.
+             * parent_id:
+             *
+             * NULL
+             *     = Main Category
+             *
+             * Main Category ID
+             *     = Subcategory
+             *
+             * A subcategory cannot be used as the parent
+             * of another subcategory.
              */
             'parent_id' => [
                 'nullable',
-                'exists:categories,id',
+                'integer',
+                Rule::exists('categories', 'id')
+                    ->whereNull('parent_id'),
             ],
 
             /*
-             * Category name entered by the admin.
+             * Category name.
              */
             'name' => [
                 'required',
@@ -34,8 +51,10 @@ class StoreCategoryRequest extends FormRequest
             ],
 
             /*
-             * Slug is generated automatically by the controller
-             * when the admin does not provide one.
+             * Slug is optional.
+             *
+             * If the admin does not provide it,
+             * CategoryController generates it automatically.
              */
             'slug' => [
                 'nullable',

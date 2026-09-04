@@ -9,10 +9,10 @@ use Illuminate\Validation\Rule;
 class UpdateProductRequest extends FormRequest
 {
     /**
-     * Allow the request.
+     * Determine whether the user is authorized
+     * to make this request.
      *
-     * Access control is already handled by the
-     * auth:sanctum and admin route middleware.
+     * Access control is handled by the route middleware.
      */
     public function authorize(): bool
     {
@@ -20,7 +20,7 @@ class UpdateProductRequest extends FormRequest
     }
 
     /**
-     * Validation rules for updating a product.
+     * Get the validation rules that apply to the request.
      */
     public function rules(): array
     {
@@ -33,27 +33,25 @@ class UpdateProductRequest extends FormRequest
         return [
             /*
             |--------------------------------------------------------------------------
-            | Product categories
+            | Product category
             |--------------------------------------------------------------------------
+            |
+            | If category_id is provided, it MUST be a subcategory.
+            |
+            | Main category:
+            |     parent_id = NULL
+            |
+            | Subcategory:
+            |     parent_id != NULL
+            |
             */
 
             'category_id' => [
                 'sometimes',
-                'nullable',
+                'required',
                 'integer',
-                'exists:categories,id',
-            ],
-
-            'category_ids' => [
-                'sometimes',
-                'nullable',
-                'array',
-            ],
-
-            'category_ids.*' => [
-                'integer',
-                'distinct',
-                'exists:categories,id',
+                Rule::exists('categories', 'id')
+                    ->whereNotNull('parent_id'),
             ],
 
             /*
@@ -74,7 +72,8 @@ class UpdateProductRequest extends FormRequest
                 'nullable',
                 'string',
                 'max:255',
-                Rule::unique('products', 'slug')->ignore($productId),
+                Rule::unique('products', 'slug')
+                    ->ignore($productId),
             ],
 
             'brand' => [
@@ -148,7 +147,7 @@ class UpdateProductRequest extends FormRequest
 
             /*
             |--------------------------------------------------------------------------
-            | Warranty and SKU
+            | Warranty
             |--------------------------------------------------------------------------
             */
 
@@ -160,44 +159,44 @@ class UpdateProductRequest extends FormRequest
                 'max:240',
             ],
 
+            /*
+            |--------------------------------------------------------------------------
+            | Product SKU
+            |--------------------------------------------------------------------------
+            */
+
             'sku' => [
                 'sometimes',
                 'nullable',
                 'string',
                 'max:100',
-                Rule::unique('products', 'sku')->ignore($productId),
+                Rule::unique('products', 'sku')
+                    ->ignore($productId),
             ],
 
             /*
             |--------------------------------------------------------------------------
             | Product images
             |--------------------------------------------------------------------------
-            |
-            | Sending the images field replaces the existing image records.
-            | Each image_path should contain a stored image path or URL.
-            |
             */
 
-    'images' => [
-    'sometimes',
-    'nullable',
-    'array',
-],
+            'images' => [
+                'sometimes',
+                'nullable',
+                'array',
+            ],
 
-    'images.*' => [
-    'file',
-    'image',
-    'mimes:jpg,jpeg,png,webp,gif',
-    'max:10240',
-],
+            'images.*' => [
+                'file',
+                'image',
+                'mimes:jpg,jpeg,png,webp,gif',
+                'max:10240',
+            ],
 
             /*
             |--------------------------------------------------------------------------
             | Product variants
             |--------------------------------------------------------------------------
-            |
-            | Sending variants replaces the existing variants.
-            |
             */
 
             'variants' => [
@@ -245,41 +244,67 @@ class UpdateProductRequest extends FormRequest
     }
 
     /**
-     * Custom validation messages.
+     * Get custom validation messages.
      */
-    public function messages(): array
-    {
-        return [
-            'name.required' => 'The product name is required.',
-            'price.required' => 'The product price is required.',
-            'price.min' => 'The product price cannot be negative.',
+   public function messages(): array
+{
+    return [
+        'category_id.required' =>
+            'Please select a product subcategory.',
 
-            'discount_price.lte' =>
-                'The discount price must be less than or equal to the regular price.',
+        'category_id.integer' =>
+            'The selected product subcategory is invalid.',
 
-            'stock_qty.required' =>
-                'The product stock quantity is required.',
+        'category_id.exists' =>
+            'The selected product category must be a valid subcategory.',
 
-            'stock_qty.min' =>
-                'The product stock quantity cannot be negative.',
+        'name.required' =>
+            'The product name is required.',
 
-            'category_id.exists' =>
-                'The selected product category does not exist.',
+        'price.required' =>
+            'The product price is required.',
 
-            'category_ids.*.exists' =>
-                'One or more selected product categories do not exist.',
+        'price.min' =>
+            'The product price cannot be negative.',
 
-            'slug.unique' =>
-                'Another product is already using this slug.',
+        'discount_price.min' =>
+            'The discount price cannot be negative.',
 
-            'sku.unique' =>
-                'Another product is already using this SKU.',
+        'discount_price.lte' =>
+            'The discount price cannot be greater than the regular price.',
 
-            'variants.*.variant_name.required' =>
-                'Every variant must contain a variant name.',
+        'stock_qty.required' =>
+            'The product stock quantity is required.',
 
-            'variants.*.variant_value.required' =>
-                'Every variant must contain a variant value.',
-        ];
-    }
+        'stock_qty.min' =>
+            'The product stock quantity cannot be negative.',
+
+        'slug.unique' =>
+            'Another product is already using this slug.',
+
+        'sku.unique' =>
+            'Another product is already using this SKU.',
+
+        'warranty_months.min' =>
+            'Warranty months cannot be negative.',
+
+        'warranty_months.max' =>
+            'Warranty cannot exceed 240 months.',
+
+        'images.*.image' =>
+            'Every uploaded file must be a valid image.',
+
+        'images.*.mimes' =>
+            'Images must be JPG, JPEG, PNG, WebP, or GIF.',
+
+        'images.*.max' =>
+            'Each image must not be larger than 10 MB.',
+
+        'variants.*.variant_name.required' =>
+            'Every variant must contain a variant name.',
+
+        'variants.*.variant_value.required' =>
+            'Every variant must contain a variant value.',
+    ];
+}
 }

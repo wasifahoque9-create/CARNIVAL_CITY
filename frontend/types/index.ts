@@ -212,6 +212,12 @@ export interface ProductFilters {
   category_slug?: string;
   min_price?: number;
   max_price?: number;
+  sort?:
+    | "newest"
+    | "name"
+    | "price_asc"
+    | "price_desc"
+    | "rating";
   page?: number;
   per_page?: number;
 }

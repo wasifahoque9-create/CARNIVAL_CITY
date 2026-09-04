@@ -7,6 +7,7 @@ use App\Http\Requests\Api\Category\StoreCategoryRequest;
 use App\Http\Requests\Api\Category\UpdateCategoryRequest;
 use App\Http\Resources\CategoryResource;
 use App\Models\Category;
+use App\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -14,10 +15,17 @@ use Illuminate\Support\Str;
 
 class CategoryController extends Controller
 {
+    /**
+     * Display all main categories with their subcategories.
+     */
     public function index(): JsonResponse
     {
         $categories = Category::query()
-            ->with('children')
+            ->with([
+                'subcategories' => function ($query) {
+                    $query->orderBy('name');
+                },
+            ])
             ->whereNull('parent_id')
             ->orderBy('name')
             ->get();
@@ -27,24 +35,50 @@ class CategoryController extends Controller
         ]);
     }
 
-    public function store(StoreCategoryRequest $request): JsonResponse
-    {
+    /**
+     * Store a new category.
+     *
+     * parent_id = NULL
+     *     => Main category
+     *
+     * parent_id = ID of a main category
+     *     => Subcategory
+     */
+    public function store(
+        StoreCategoryRequest $request
+    ): JsonResponse {
         $data = $request->validated();
 
         /*
-         * Generate slug automatically if the admin
+         * Generate a slug automatically when the admin
          * does not provide one.
          */
-        $data['slug'] = $data['slug'] ?? Str::slug($data['name']);
+        $data['slug'] = $data['slug'] ?? Str::slug(
+            $data['name']
+        );
 
         /*
-         * Upload category image.
+         * A subcategory must belong directly to a
+         * main category.
          *
-         * The actual file will be stored in:
-         * storage/app/public/categories/
-         *
-         * The database will store something like:
-         * categories/laptop.jpg
+         * We do not allow a subcategory to have another
+         * subcategory as its parent.
+         */
+        if (!empty($data['parent_id'])) {
+            $parent = Category::findOrFail(
+                $data['parent_id']
+            );
+
+            if (!is_null($parent->parent_id)) {
+                return response()->json([
+                    'message' =>
+                        'A subcategory cannot be used as a parent category.',
+                ], 422);
+            }
+        }
+
+        /*
+         * Upload category image if provided.
          */
         if ($request->hasFile('image')) {
             $data['image_path'] = $request
@@ -53,18 +87,25 @@ class CategoryController extends Controller
         }
 
         /*
-         * image is an uploaded file, not a database column.
+         * "image" is an uploaded file, not a database column.
          */
         unset($data['image']);
 
         $category = Category::create($data);
 
         return response()->json([
-            'message' => 'Category created successfully.',
-            'data' => new CategoryResource($category),
+            'message' =>
+                'Category created successfully.',
+
+            'data' => new CategoryResource(
+                $category->load('subcategories')
+            ),
         ], 201);
     }
 
+    /**
+     * Update a category.
+     */
     public function update(
         UpdateCategoryRequest $request,
         Category $category
@@ -72,27 +113,61 @@ class CategoryController extends Controller
         $data = $request->validated();
 
         /*
-         * Automatically regenerate the slug if the
-         * category name is changed and no slug was supplied.
+         * Automatically regenerate the slug when
+         * the name changes and no slug was supplied.
          */
         if (
             isset($data['name']) &&
             !isset($data['slug'])
         ) {
-            $data['slug'] = Str::slug($data['name']);
+            $data['slug'] = Str::slug(
+                $data['name']
+            );
         }
 
         /*
-         * If a new image was uploaded:
+         * If parent_id is being changed, make sure:
          *
-         * 1. Delete the old image.
-         * 2. Store the new image.
-         * 3. Save the new path.
+         * 1. The category cannot be its own parent.
+         * 2. A subcategory cannot become the parent.
+         * 3. Categories remain limited to two levels.
+         */
+        if (array_key_exists('parent_id', $data)) {
+            $parentId = $data['parent_id'];
+
+            if ($parentId !== null) {
+                if (
+                    (int) $parentId ===
+                    (int) $category->id
+                ) {
+                    return response()->json([
+                        'message' =>
+                            'A category cannot be its own parent.',
+                    ], 422);
+                }
+
+                $parent = Category::findOrFail(
+                    $parentId
+                );
+
+                if (!is_null($parent->parent_id)) {
+                    return response()->json([
+                        'message' =>
+                            'A subcategory cannot be used as a parent category.',
+                    ], 422);
+                }
+            }
+        }
+
+        /*
+         * Upload a new category image.
          */
         if ($request->hasFile('image')) {
             if (
                 $category->image_path &&
-                Storage::disk('public')->exists($category->image_path)
+                Storage::disk('public')->exists(
+                    $category->image_path
+                )
             ) {
                 Storage::disk('public')->delete(
                     $category->image_path
@@ -105,69 +180,102 @@ class CategoryController extends Controller
         }
 
         /*
-         * image is the uploaded file, not a database field.
+         * "image" is the uploaded file, not a database field.
          */
         unset($data['image']);
 
         $category->update($data);
 
         return response()->json([
-            'message' => 'Category updated successfully.',
+            'message' =>
+                'Category updated successfully.',
+
             'data' => new CategoryResource(
-                $category->fresh('children')
+                $category->fresh('subcategories')
             ),
         ]);
     }
 
+    /**
+     * Delete a category.
+     *
+     * If a main category is deleted:
+     * - its subcategories are deleted
+     * - products are NOT deleted
+     * - products belonging to those subcategories have
+     *   their category_id set to NULL
+     *
+     * If a subcategory is deleted:
+     * - the subcategory is deleted
+     * - its products are NOT deleted
+     * - those products have their category_id set to NULL
+     */
     public function destroy(
         Category $category
     ): JsonResponse {
-        /*
-         * Delete the category safely without deleting
-         * any products.
-         *
-         * Products can be connected to categories in
-         * two different ways in this project:
-         *
-         * 1. products.category_id
-         * 2. category_product pivot table
-         *
-         * We remove both associations first.
-         */
-
         DB::transaction(function () use ($category) {
 
             /*
-             * Remove the category from the many-to-many
-             * category_product relationship.
+             * Get all direct subcategories.
              *
+             * For a subcategory this will be an empty collection.
+             * For a main category this contains its subcategories.
+             */
+            $subcategories = $category
+                ->subcategories()
+                ->get();
+
+            /*
+             * Build the list of category IDs whose products
+             * must be preserved.
+             *
+             * This includes:
+             * - the category being deleted
+             * - all direct subcategories
+             */
+            $categoryIds = $subcategories
+                ->pluck('id')
+                ->push($category->id)
+                ->unique()
+                ->values();
+
+            /*
              * IMPORTANT:
-             * This does NOT delete the products.
-             */
-            $category->products()->detach();
-
-            /*
-             * Remove the category from products that use
-             * this category as their primary category.
              *
-             * This requires products.category_id to allow NULL.
-             */
-            $category->primaryProducts()->update([
-                'category_id' => null,
-            ]);
-
-            /*
-             * If this category has child categories,
-             * don't delete those child categories.
+             * Explicitly detach products from these categories
+             * BEFORE deleting the categories.
              *
-             * Instead, make them top-level categories.
+             * This guarantees that products are preserved.
+             * Their category_id becomes NULL.
+             *
+             * We do NOT delete any Product records here.
              */
-            $category->children()->update([
-                'parent_id' => null,
-            ]);
+            Product::query()
+                ->whereIn('category_id', $categoryIds)
+                ->update([
+                    'category_id' => null,
+                ]);
 
             /*
-             * Delete the category image from storage.
+             * Delete subcategory images and subcategories.
+             */
+            foreach ($subcategories as $subcategory) {
+                if (
+                    $subcategory->image_path &&
+                    Storage::disk('public')->exists(
+                        $subcategory->image_path
+                    )
+                ) {
+                    Storage::disk('public')->delete(
+                        $subcategory->image_path
+                    );
+                }
+
+                $subcategory->delete();
+            }
+
+            /*
+             * Delete the main category/subcategory image.
              */
             if (
                 $category->image_path &&
@@ -181,15 +289,17 @@ class CategoryController extends Controller
             }
 
             /*
-             * Finally delete only the category itself.
+             * Delete the category itself.
              *
-             * Products remain untouched.
+             * Products have already been detached above,
+             * so no Product records are deleted.
              */
             $category->delete();
         });
 
         return response()->json([
-            'message' => 'Category deleted successfully.',
+            'message' =>
+                'Category and its subcategories deleted successfully.',
         ]);
     }
 }

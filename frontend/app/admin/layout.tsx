@@ -20,11 +20,14 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50">
+      {/* Fixed Sidebar */}
       <AdminSidebar />
-      <div className="flex-1 overflow-auto">
+
+      {/* Main Content */}
+      <main className="min-h-screen lg:ml-64">
         <div className="p-4 sm:p-6 lg:p-8">{children}</div>
-      </div>
+      </main>
     </div>
   );
 }

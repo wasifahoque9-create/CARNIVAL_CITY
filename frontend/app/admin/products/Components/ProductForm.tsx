@@ -4,66 +4,66 @@ import {
   ChangeEvent,
   FormEvent,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
 import { API_BASE } from "@/lib/api";
 
-type Category = {
+type Subcategory = {
   id: number;
   name: string;
   slug?: string;
+  parent_id?: number | null;
 };
 
-function extractCategories(response: unknown): Category[] {
+type MainCategory = {
+  id: number;
+  name: string;
+  slug?: string;
+  parent_id?: number | null;
+  subcategories?: Subcategory[];
+  children?: Subcategory[];
+};
+
+declare global {
+  interface Window {
+    jQuery?: any;
+  }
+}
+
+/*
+|--------------------------------------------------------------------------
+| Helpers
+|--------------------------------------------------------------------------
+*/
+
+function extractCategories(response: any): MainCategory[] {
   if (Array.isArray(response)) {
-    return response as Category[];
+    return response;
   }
 
-  if (
-    response &&
-    typeof response === "object" &&
-    "data" in response
-  ) {
-    const firstData = (
-      response as { data?: unknown }
-    ).data;
+  if (Array.isArray(response?.data)) {
+    return response.data;
+  }
 
-    if (Array.isArray(firstData)) {
-      return firstData as Category[];
-    }
-
-    if (
-      firstData &&
-      typeof firstData === "object" &&
-      "data" in firstData
-    ) {
-      const secondData = (
-        firstData as { data?: unknown }
-      ).data;
-
-      if (Array.isArray(secondData)) {
-        return secondData as Category[];
-      }
-    }
+  if (Array.isArray(response?.data?.data)) {
+    return response.data.data;
   }
 
   return [];
 }
 
 function getFirstValidationError(
-  errors: unknown,
+  errors: Record<string, string[] | string> | undefined,
 ): string | null {
   if (!errors || typeof errors !== "object") {
     return null;
   }
 
   for (const value of Object.values(errors)) {
-    if (
-      Array.isArray(value) &&
-      typeof value[0] === "string"
-    ) {
-      return value[0];
+    if (Array.isArray(value) && value.length > 0) {
+      return String(value[0]);
     }
 
     if (typeof value === "string") {
@@ -74,11 +74,25 @@ function getFirstValidationError(
   return null;
 }
 
+function getSubcategories(
+  category: MainCategory,
+): Subcategory[] {
+  if (Array.isArray(category.subcategories)) {
+    return category.subcategories;
+  }
+
+  if (Array.isArray(category.children)) {
+    return category.children;
+  }
+
+  return [];
+}
+
 export default function ProductForm() {
   const router = useRouter();
 
   const [categories, setCategories] = useState<
-    Category[]
+    MainCategory[]
   >([]);
 
   const [categoriesLoading, setCategoriesLoading] =
@@ -89,6 +103,8 @@ export default function ProductForm() {
   const [sku, setSku] = useState("");
   const [brand, setBrand] = useState("");
   const [price, setPrice] = useState("");
+  const [discountPrice, setDiscountPrice] =
+    useState("");
   const [stockQty, setStockQty] = useState("0");
   const [description, setDescription] =
     useState("");
@@ -100,16 +116,227 @@ export default function ProductForm() {
 
   const [submitting, setSubmitting] =
     useState(false);
+
   const [error, setError] = useState("");
+
+  const descriptionRef =
+    useRef<HTMLTextAreaElement | null>(null);
+
+  const summernoteInitialized =
+    useRef(false);
 
   /*
   |--------------------------------------------------------------------------
-  | Load product categories
+  | Initialize Summernote
   |--------------------------------------------------------------------------
   */
 
   useEffect(() => {
-    const controller = new AbortController();
+    let cancelled = false;
+
+    const textarea = descriptionRef.current;
+
+    if (!textarea) {
+      return;
+    }
+
+    function initializeSummernote() {
+      if (
+        cancelled ||
+        !descriptionRef.current ||
+        !window.jQuery ||
+        !window.jQuery.fn?.summernote ||
+        summernoteInitialized.current
+      ) {
+        return;
+      }
+
+      const $ = window.jQuery;
+      const currentTextarea = descriptionRef.current;
+
+      $(currentTextarea).summernote({
+        placeholder: "Enter product description",
+        height: 300,
+        minHeight: 200,
+        maxHeight: 500,
+        focus: false,
+
+        toolbar: [
+          ["style", ["style"]],
+          [
+            "font",
+            ["bold", "italic", "underline", "clear"],
+          ],
+          ["fontname", ["fontname"]],
+          ["fontsize", ["fontsize"]],
+          ["color", ["color"]],
+          ["para", ["ul", "ol", "paragraph"]],
+          ["table", ["table"]],
+          [
+            "insert",
+            ["link", "picture", "video"],
+          ],
+          [
+            "view",
+            ["fullscreen", "codeview", "help"],
+          ],
+        ],
+
+        callbacks: {
+          onChange: (contents: string) => {
+            setDescription(contents);
+          },
+        },
+      });
+
+      /*
+      |--------------------------------------------------------------------------
+      | Make sure the editor starts empty
+      |--------------------------------------------------------------------------
+      */
+
+      $(currentTextarea).summernote("code", "");
+
+      summernoteInitialized.current = true;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Load Summernote CSS
+    |--------------------------------------------------------------------------
+    */
+
+    const summernoteCssId =
+      "summernote-lite-css";
+
+    if (!document.getElementById(summernoteCssId)) {
+      const link = document.createElement("link");
+
+      link.id = summernoteCssId;
+      link.rel = "stylesheet";
+      link.href =
+        "https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-lite.min.css";
+
+      document.head.appendChild(link);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Load jQuery
+    |--------------------------------------------------------------------------
+    */
+
+    const jqueryUrl =
+      "https://code.jquery.com/jquery-3.7.1.min.js";
+
+    const summernoteUrl =
+      "https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-lite.min.js";
+
+    function loadScript(
+      id: string,
+      src: string,
+      onLoad: () => void,
+    ) {
+      const existingScript =
+        document.getElementById(id) as HTMLScriptElement | null;
+
+      if (existingScript) {
+        if (
+          existingScript.dataset.loaded === "true"
+        ) {
+          onLoad();
+        } else {
+          existingScript.addEventListener(
+            "load",
+            onLoad,
+            { once: true },
+          );
+        }
+
+        return;
+      }
+
+      const script =
+        document.createElement("script");
+
+      script.id = id;
+      script.src = src;
+      script.async = false;
+
+      script.addEventListener(
+        "load",
+        () => {
+          script.dataset.loaded = "true";
+          onLoad();
+        },
+        { once: true },
+      );
+
+      document.body.appendChild(script);
+    }
+
+    function loadSummernote() {
+      if (
+        window.jQuery?.fn?.summernote
+      ) {
+        initializeSummernote();
+        return;
+      }
+
+      loadScript(
+        "summernote-js",
+        summernoteUrl,
+        initializeSummernote,
+      );
+    }
+
+    if (window.jQuery) {
+      loadSummernote();
+    } else {
+      loadScript(
+        "jquery-js",
+        jqueryUrl,
+        loadSummernote,
+      );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Cleanup
+    |--------------------------------------------------------------------------
+    */
+
+    return () => {
+      cancelled = true;
+
+      if (
+        descriptionRef.current &&
+        window.jQuery &&
+        window.jQuery.fn?.summernote &&
+        summernoteInitialized.current
+      ) {
+        try {
+          window.jQuery(
+            descriptionRef.current,
+          ).summernote("destroy");
+        } catch {
+          // Ignore Summernote cleanup errors.
+        }
+      }
+
+      summernoteInitialized.current = false;
+    };
+  }, []);
+
+  /*
+  |--------------------------------------------------------------------------
+  | Load main categories and subcategories
+  |--------------------------------------------------------------------------
+  */
+
+  useEffect(() => {
+    const controller =
+      new AbortController();
 
     async function loadCategories() {
       setCategoriesLoading(true);
@@ -142,11 +369,39 @@ export default function ProductForm() {
         const categoryList =
           extractCategories(data);
 
-        setCategories(categoryList);
+        /*
+        |--------------------------------------------------------------------------
+        | Only keep main categories internally.
+        |
+        | The dropdown below will flatten their
+        | subcategories and will NOT display the
+        | main category names.
+        |--------------------------------------------------------------------------
+        */
 
-        if (categoryList.length === 0) {
+        const mainCategories =
+          categoryList.filter(
+            (category) =>
+              category.parent_id === null ||
+              category.parent_id === undefined ||
+              category.parent_id === 0,
+          );
+
+        setCategories(mainCategories);
+
+        const hasSubcategories =
+          mainCategories.some(
+            (category) =>
+              getSubcategories(category).length > 0,
+          );
+
+        if (mainCategories.length === 0) {
           setError(
-            "No categories are available. Create a category first.",
+            "No main categories are available. Please create a main category first.",
+          );
+        } else if (!hasSubcategories) {
+          setError(
+            "No subcategories are available. Please create a subcategory under a main category first.",
           );
         }
       } catch (categoryError) {
@@ -216,8 +471,10 @@ export default function ProductForm() {
       setError(
         "You may upload a maximum of 8 images.",
       );
+
       setImages([]);
       event.target.value = "";
+
       return;
     }
 
@@ -227,31 +484,38 @@ export default function ProductForm() {
       "image/webp",
     ];
 
-    const invalidTypeFile = selectedFiles.find(
-      (file) => !acceptedTypes.includes(file.type),
-    );
+    const invalidTypeFile =
+      selectedFiles.find(
+        (file) =>
+          !acceptedTypes.includes(file.type),
+      );
 
     if (invalidTypeFile) {
       setError(
         "Images must be JPG, JPEG, PNG, or WebP.",
       );
+
       setImages([]);
       event.target.value = "";
+
       return;
     }
 
     const maximumSize = 4 * 1024 * 1024;
 
-    const oversizedFile = selectedFiles.find(
-      (file) => file.size > maximumSize,
-    );
+    const oversizedFile =
+      selectedFiles.find(
+        (file) => file.size > maximumSize,
+      );
 
     if (oversizedFile) {
       setError(
         "Each image must not be larger than 4 MB.",
       );
+
       setImages([]);
       event.target.value = "";
+
       return;
     }
 
@@ -262,10 +526,22 @@ export default function ProductForm() {
   function removeImage(index: number) {
     setImages((currentImages) =>
       currentImages.filter(
-        (_, imageIndex) => imageIndex !== index,
+        (_, imageIndex) =>
+          imageIndex !== index,
       ),
     );
   }
+
+  /*
+  |--------------------------------------------------------------------------
+  | Check whether at least one subcategory exists
+  |--------------------------------------------------------------------------
+  */
+
+  const hasSubcategories = categories.some(
+    (category) =>
+      getSubcategories(category).length > 0,
+  );
 
   /*
   |--------------------------------------------------------------------------
@@ -279,10 +555,19 @@ export default function ProductForm() {
     event.preventDefault();
     setError("");
 
+    if (!hasSubcategories) {
+      setError(
+        "Please create a main category and at least one subcategory before creating a product.",
+      );
+
+      return;
+    }
+
     if (!categoryId) {
       setError(
         "Please select a product category.",
       );
+
       return;
     }
 
@@ -290,15 +575,18 @@ export default function ProductForm() {
       setError(
         "Please select at least one product image.",
       );
+
       return;
     }
 
-    const token = localStorage.getItem("token");
+    const token =
+      localStorage.getItem("token");
 
     if (!token) {
       setError(
         "You are not logged in. Please log in as an admin.",
       );
+
       return;
     }
 
@@ -307,20 +595,70 @@ export default function ProductForm() {
     try {
       const formData = new FormData();
 
-      formData.append("category_id", categoryId);
-      formData.append("name", name.trim());
-      formData.append("sku", sku.trim());
-      formData.append("brand", brand.trim());
-      formData.append("price", price);
-      formData.append("stock_qty", stockQty);
+      /*
+      |--------------------------------------------------------------------------
+      | category_id MUST contain the subcategory ID.
+      |--------------------------------------------------------------------------
+      */
+
+      formData.append(
+        "category_id",
+        categoryId,
+      );
+
+      formData.append(
+        "name",
+        name.trim(),
+      );
+
+      formData.append(
+        "sku",
+        sku.trim(),
+      );
+
+      formData.append(
+        "brand",
+        brand.trim(),
+      );
+
+      formData.append(
+        "price",
+        price,
+      );
+
+      if (discountPrice.trim() !== "") {
+        formData.append(
+          "discount_price",
+          discountPrice,
+        );
+      }
+
+      formData.append(
+        "stock_qty",
+        stockQty,
+      );
+
+      /*
+      |--------------------------------------------------------------------------
+      | Summernote stores the description as HTML.
+      |--------------------------------------------------------------------------
+      */
+
       formData.append(
         "description",
         description.trim(),
       );
-      formData.append("status", status);
+
+      formData.append(
+        "status",
+        status,
+      );
 
       images.forEach((image) => {
-        formData.append("images[]", image);
+        formData.append(
+          "images[]",
+          image,
+        );
       });
 
       const response = await fetch(
@@ -342,7 +680,9 @@ export default function ProductForm() {
 
       if (!response.ok) {
         const validationError =
-          getFirstValidationError(data?.errors);
+          getFirstValidationError(
+            data?.errors,
+          );
 
         throw new Error(
           validationError ??
@@ -367,6 +707,12 @@ export default function ProductForm() {
   const inputClass =
     "w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-[#121358] focus:ring-2 focus:ring-[#121358]/10";
 
+  /*
+  |--------------------------------------------------------------------------
+  | Render
+  |--------------------------------------------------------------------------
+  */
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -379,44 +725,65 @@ export default function ProductForm() {
       )}
 
       <div className="grid gap-5 md:grid-cols-2">
+        {/* Product Category */}
         <div>
           <label
             htmlFor="category"
             className="mb-2 block text-sm font-semibold text-gray-700"
           >
-            Product category
+            Product Category
           </label>
 
           <select
             id="category"
             value={categoryId}
             onChange={(event) =>
-              setCategoryId(event.target.value)
+              setCategoryId(
+                event.target.value,
+              )
             }
             required
             disabled={
               categoriesLoading ||
-              categories.length === 0
+              !hasSubcategories
             }
             className={`${inputClass} bg-white disabled:cursor-not-allowed disabled:bg-gray-100`}
           >
             <option value="">
               {categoriesLoading
                 ? "Loading categories..."
-                : "Select a category"}
+                : !hasSubcategories
+                  ? "No subcategories available"
+                  : "Select Shop by Category"}
             </option>
 
-            {categories.map((category) => (
-              <option
-                key={category.id}
-                value={category.id}
-              >
-                {category.name}
-              </option>
-            ))}
+            {/*
+            |--------------------------------------------------------------------------
+            | IMPORTANT:
+            | Only subcategories are rendered here.
+            |
+            | There is NO <optgroup>, so main category
+            | names will not appear in the dropdown.
+            |--------------------------------------------------------------------------
+            */}
+
+            {categories.flatMap(
+              (mainCategory) =>
+                getSubcategories(
+                  mainCategory,
+                ).map((subcategory) => (
+                  <option
+                    key={subcategory.id}
+                    value={subcategory.id}
+                  >
+                    {subcategory.name}
+                  </option>
+                )),
+            )}
           </select>
         </div>
 
+        {/* Product Name */}
         <div>
           <label
             htmlFor="name"
@@ -438,6 +805,7 @@ export default function ProductForm() {
           />
         </div>
 
+        {/* SKU */}
         <div>
           <label
             htmlFor="sku"
@@ -459,6 +827,7 @@ export default function ProductForm() {
           />
         </div>
 
+        {/* Brand */}
         <div>
           <label
             htmlFor="brand"
@@ -479,6 +848,7 @@ export default function ProductForm() {
           />
         </div>
 
+        {/* Price */}
         <div>
           <label
             htmlFor="price"
@@ -502,6 +872,32 @@ export default function ProductForm() {
           />
         </div>
 
+        {/* Discount Price */}
+        <div>
+          <label
+            htmlFor="discount_price"
+            className="mb-2 block text-sm font-semibold text-gray-700"
+          >
+            Discount Price
+          </label>
+
+          <input
+            id="discount_price"
+            type="number"
+            min="0"
+            step="0.01"
+            value={discountPrice}
+            onChange={(event) =>
+              setDiscountPrice(
+                event.target.value,
+              )
+            }
+            placeholder="Leave empty if there is no discount"
+            className={inputClass}
+          />
+        </div>
+
+        {/* Stock */}
         <div>
           <label
             htmlFor="stock"
@@ -517,13 +913,17 @@ export default function ProductForm() {
             step="1"
             value={stockQty}
             onChange={(event) =>
-              setStockQty(event.target.value)
+              setStockQty(
+                event.target.value,
+              )
             }
             required
+            placeholder="0"
             className={inputClass}
           />
         </div>
 
+        {/* Status */}
         <div>
           <label
             htmlFor="status"
@@ -536,16 +936,20 @@ export default function ProductForm() {
             id="status"
             value={status}
             onChange={(event) =>
-              setStatus(event.target.value)
+              setStatus(
+                event.target.value,
+              )
             }
             className={`${inputClass} bg-white`}
           >
             <option value="active">
               Active
             </option>
+
             <option value="draft">
               Draft
             </option>
+
             <option value="archived">
               Archived
             </option>
@@ -553,6 +957,7 @@ export default function ProductForm() {
         </div>
       </div>
 
+      {/* Description */}
       <div>
         <label
           htmlFor="description"
@@ -562,15 +967,12 @@ export default function ProductForm() {
         </label>
 
         <textarea
+          ref={descriptionRef}
           id="description"
-          rows={6}
-          value={description}
-          onChange={(event) =>
-            setDescription(event.target.value)
-          }
+          defaultValue=""
           required
           placeholder="Enter product description"
-          className={`${inputClass} resize-y`}
+          className="w-full"
         />
       </div>
 
@@ -596,7 +998,8 @@ export default function ProductForm() {
         <p className="mt-2 text-xs text-gray-500">
           Select JPG, JPEG, PNG, or WebP files.
           Maximum 8 images and 4 MB per image.
-          The first image will be the primary image.
+          The first image will be the primary
+          image.
         </p>
 
         {imagePreviews.length > 0 && (
@@ -610,7 +1013,9 @@ export default function ProductForm() {
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={previewUrl}
-                    alt={`Product preview ${index + 1}`}
+                    alt={`Product preview ${
+                      index + 1
+                    }`}
                     className="h-36 w-full object-cover"
                   />
 
@@ -642,11 +1047,14 @@ export default function ProductForm() {
         )}
       </div>
 
+      {/* Buttons */}
       <div className="flex justify-end gap-3 border-t border-gray-200 pt-6">
         <button
           type="button"
           onClick={() =>
-            router.push("/admin/products")
+            router.push(
+              "/admin/products",
+            )
           }
           className="rounded-xl border border-gray-300 px-5 py-3 text-sm font-semibold text-gray-600 hover:bg-gray-50"
         >
@@ -658,7 +1066,7 @@ export default function ProductForm() {
           disabled={
             submitting ||
             categoriesLoading ||
-            categories.length === 0
+            !hasSubcategories
           }
           className="rounded-xl bg-[#121358] px-6 py-3 text-sm font-semibold text-white hover:bg-[#1d1e75] disabled:cursor-not-allowed disabled:opacity-60"
         >

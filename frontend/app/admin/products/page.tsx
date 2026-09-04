@@ -38,7 +38,7 @@ const initialPagination: PaginationMeta = {
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [pagination, setPagination] =
-    useState<PaginationMeta>(initialPagination);
+    useState(initialPagination);
 
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
@@ -72,7 +72,8 @@ export default function AdminProductsPage() {
         setProducts(response.data ?? []);
 
         setPagination({
-          current_page: response.meta?.current_page ?? page,
+          current_page:
+            response.meta?.current_page ?? page,
           last_page: response.meta?.last_page ?? 1,
           per_page: response.meta?.per_page ?? 10,
           total: response.meta?.total ?? 0,
@@ -91,9 +92,7 @@ export default function AdminProductsPage() {
     loadProducts(1);
   }, [loadProducts]);
 
-  function handleSearch(
-    event: React.FormEvent<HTMLFormElement>,
-  ) {
+  function handleSearch(event: React.FormEvent) {
     event.preventDefault();
     setSearch(searchInput.trim());
   }
@@ -105,7 +104,7 @@ export default function AdminProductsPage() {
 
   async function handleDelete(product: Product) {
     const confirmed = window.confirm(
-      `Archive "${product.name}"? It will no longer appear on the customer website.`,
+      `Delete "${product.name}"? It will no longer appear on the customer website.`,
     );
 
     if (!confirmed) {
@@ -120,12 +119,12 @@ export default function AdminProductsPage() {
       await adminApi.products.delete(product.id);
 
       setMessage(
-        `"${product.name}" was archived successfully.`,
+        `"${product.name}" was deleted successfully.`,
       );
 
       await loadProducts(pagination.current_page);
     } catch {
-      setError("The product could not be archived.");
+      setError("The product could not be deleted.");
     } finally {
       setDeletingId(null);
     }
@@ -145,9 +144,10 @@ export default function AdminProductsPage() {
 
   return (
     <main className="space-y-6">
+      {/* Header */}
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[#121358] sm:text-3xl">
+          <h1 className="text-2xl font-bold text-[#121358]">
             Products
           </h1>
 
@@ -166,12 +166,14 @@ export default function AdminProductsPage() {
         </Link>
       </header>
 
+      {/* Success Message */}
       {message && (
         <div className="rounded-xl bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
           {message}
         </div>
       )}
 
+      {/* Error Message */}
       {error && (
         <div className="rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
           {error}
@@ -179,15 +181,20 @@ export default function AdminProductsPage() {
       )}
 
       <Card padding="none" className="overflow-hidden">
+        {/* Search and Filters */}
         <div className="border-b border-gray-200 p-4">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <form
               onSubmit={handleSearch}
               className="flex w-full gap-2 xl:max-w-xl"
             >
-              <label htmlFor="product-search" className="sr-only">
+              <label
+                htmlFor="product-search"
+                className="sr-only"
+              >
                 Search products
               </label>
+
               <input
                 id="product-search"
                 type="search"
@@ -215,9 +222,13 @@ export default function AdminProductsPage() {
             </form>
 
             <div className="grid gap-3 sm:grid-cols-3">
-              <label htmlFor="filter-status" className="sr-only">
+              <label
+                htmlFor="filter-status"
+                className="sr-only"
+              >
                 Filter by status
               </label>
+
               <select
                 id="filter-status"
                 value={status}
@@ -233,9 +244,13 @@ export default function AdminProductsPage() {
                 <option value="archived">Archived</option>
               </select>
 
-              <label htmlFor="sort-by" className="sr-only">
+              <label
+                htmlFor="sort-by"
+                className="sr-only"
+              >
                 Sort by
               </label>
+
               <select
                 id="sort-by"
                 value={sortBy}
@@ -261,9 +276,13 @@ export default function AdminProductsPage() {
                 </option>
               </select>
 
-              <label htmlFor="sort-direction" className="sr-only">
+              <label
+                htmlFor="sort-direction"
+                className="sr-only"
+              >
                 Sort direction
               </label>
+
               <select
                 id="sort-direction"
                 value={sortDirection}
@@ -286,11 +305,13 @@ export default function AdminProductsPage() {
           </div>
         </div>
 
+        {/* Loading */}
         {loading ? (
           <div className="py-16">
             <PageLoader />
           </div>
         ) : products.length === 0 ? (
+          /* Empty State */
           <div className="px-6 py-16 text-center">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#F1F2FF] text-2xl text-[#121358]">
               □
@@ -312,6 +333,7 @@ export default function AdminProductsPage() {
           </div>
         ) : (
           <>
+            {/* Products Table */}
             <div className="overflow-x-auto">
               <table className="w-full min-w-[1000px] text-left text-sm">
                 <thead className="bg-gray-50 text-gray-600">
@@ -352,6 +374,7 @@ export default function AdminProductsPage() {
                       key={product.id}
                       className="border-t border-gray-200 transition hover:bg-gray-50"
                     >
+                      {/* Product */}
                       <td className="px-4 py-4">
                         <div className="flex min-w-[250px] items-center gap-3">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -373,16 +396,19 @@ export default function AdminProductsPage() {
                         </div>
                       </td>
 
+                      {/* Category */}
                       <td className="px-4 py-4 text-gray-600">
                         {product.category?.name || "—"}
                       </td>
 
+                      {/* Price */}
                       <td className="px-4 py-4 font-semibold text-[#F59E0B]">
                         {formatPrice(
                           getProductPrice(product),
                         )}
                       </td>
 
+                      {/* Stock */}
                       <td className="px-4 py-4">
                         <span
                           className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
@@ -399,10 +425,12 @@ export default function AdminProductsPage() {
                         </span>
                       </td>
 
+                      {/* SKU */}
                       <td className="px-4 py-4 text-gray-600">
                         {product.sku || "—"}
                       </td>
 
+                      {/* Status */}
                       <td className="px-4 py-4">
                         <span
                           className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${
@@ -417,34 +445,91 @@ export default function AdminProductsPage() {
                         </span>
                       </td>
 
-                      <td className="px-4 py-4">
+                      {/* Actions */}
+                      <td className="px-4 py-4 text-right align-top">
                         <div className="flex justify-end gap-2">
+                          {/* Edit */}
                           <Link
                             href={`/admin/products/${product.id}/edit`}
                           >
-                            <Button
-                              variant="outline"
-                              size="sm"
+                            <button
+                              type="button"
+                              title="Edit"
+                              aria-label={`Edit ${product.name}`}
+                              className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:bg-gray-50 hover:text-[#121358]"
                             >
-                              Edit
-                            </Button>
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                className="h-5 w-5"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M16.862 3.487a2.25 2.25 0 0 1 3.182 3.182L8.25 18.463 4 19.5l1.037-4.25L16.862 3.487Z"
+                                />
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M14.5 5.5 18.5 9.5"
+                                />
+                              </svg>
+                            </button>
                           </Link>
 
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-red-600 hover:bg-red-50"
+                          {/* Delete */}
+                          <button
+                            type="button"
                             onClick={() =>
                               handleDelete(product)
                             }
                             disabled={
                               deletingId === product.id
                             }
+                            title="Delete"
+                            aria-label={`Delete ${product.name}`}
+                            className="flex h-10 w-10 items-center justify-center rounded-lg border border-red-200 text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                           >
-                            {deletingId === product.id
-                              ? "Archiving..."
-                              : "Archive"}
-                          </Button>
+                            {deletingId === product.id ? (
+                              <span className="h-4 w-4 animate-spin rounded-full border-2 border-red-200 border-t-red-600" />
+                            ) : (
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                className="h-5 w-5"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M6 7h12"
+                                />
+
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M10 11v6M14 11v6"
+                                />
+
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M9 7V4h6v3"
+                                />
+
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M8 7l1 13h6l1-13"
+                                />
+                              </svg>
+                            )}
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -453,6 +538,7 @@ export default function AdminProductsPage() {
               </table>
             </div>
 
+            {/* Pagination */}
             <footer className="flex flex-col gap-4 border-t border-gray-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-gray-500">
                 Showing {products.length} of{" "}

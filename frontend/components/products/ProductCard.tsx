@@ -80,6 +80,7 @@ function getProductImageUrl(product: Product): string {
 
   return "/placeholder-product.svg";
 }
+
 /*
 |--------------------------------------------------------------------------
 | Calculate discount percentage
@@ -111,7 +112,8 @@ function getDiscountPercentage(product: Product): number | null {
 
 function RatingStars({ rating }: { rating: number }) {
   const initialRating = Math.round(Number(rating || 0));
-  const [selectedRating, setSelectedRating] = useState(initialRating);
+  const [selectedRating, setSelectedRating] =
+    useState(initialRating);
   const [hoveredRating, setHoveredRating] = useState(0);
 
   const activeRating = hoveredRating || selectedRating;
@@ -134,10 +136,14 @@ function RatingStars({ rating }: { rating: number }) {
               event.stopPropagation();
               setSelectedRating(starValue);
             }}
-            onMouseEnter={() => setHoveredRating(starValue)}
+            onMouseEnter={() =>
+              setHoveredRating(starValue)
+            }
             onMouseLeave={() => setHoveredRating(0)}
             className={`text-lg leading-none transition ${
-              isActive ? "text-amber-400" : "text-gray-300"
+              isActive
+                ? "text-amber-400"
+                : "text-gray-300"
             } hover:text-amber-400`}
             aria-label={`Select ${starValue} star`}
           >
@@ -148,6 +154,13 @@ function RatingStars({ rating }: { rating: number }) {
     </span>
   );
 }
+
+/*
+|--------------------------------------------------------------------------
+| Product Card
+|--------------------------------------------------------------------------
+*/
+
 export default function ProductCard({
   product,
 }: {
@@ -169,10 +182,12 @@ export default function ProductCard({
       product.price,
   );
 
-  const discountPercentage = getDiscountPercentage(product);
+  const discountPercentage =
+    getDiscountPercentage(product);
 
-  const rating = Number(product.average_rating ?? 0);
-  const reviewCount = Number(product.review_count ?? 0);
+  const rating = Number(
+    product.average_rating ?? 0,
+  );
 
   const productImageUrl = imageFailed
     ? "/placeholder-product.svg"
@@ -237,12 +252,13 @@ export default function ProductCard({
   }
 
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-lg sm:p-5">
+    <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white p-3 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-lg sm:p-4">
+      {/* Product Image */}
       <Link
         href={`/products/${product.id}`}
         className="block"
       >
-        <div className="relative flex h-52 items-center justify-center overflow-hidden rounded-xl bg-white sm:h-56 lg:h-60">
+        <div className="relative flex h-44 items-center justify-center overflow-hidden rounded-xl bg-white sm:h-48 lg:h-52">
           {discountPercentage !== null && (
             <span className="absolute left-0 top-0 z-10 rounded-md bg-amber-500 px-2.5 py-1 text-xs font-bold text-white">
               -{discountPercentage}%
@@ -252,49 +268,55 @@ export default function ProductCard({
           <img
             src={productImageUrl}
             alt={product.name}
-            className="h-full w-full object-contain p-3 transition duration-300 group-hover:scale-105"
+            className="h-full w-full object-contain p-2 transition duration-300 group-hover:scale-105"
             onError={() => setImageFailed(true)}
           />
         </div>
       </Link>
 
-      <div className="flex flex-1 flex-col pt-5">
+      {/* Product Information */}
+      <div className="flex flex-1 flex-col pt-4">
+        {/* Brand / Category */}
         <p className="text-sm text-gray-400">
           {product.brand ||
             product.category?.name ||
             "ShopSphere"}
         </p>
 
+        {/* Product Name */}
         <Link
           href={`/products/${product.id}`}
           className="mt-1 block"
         >
-          <h3 className="line-clamp-2 min-h-12 text-base font-bold leading-6 text-slate-900 transition group-hover:text-primary">
+          <h3 className="line-clamp-2 min-h-10 text-base font-bold leading-5 text-slate-900 transition group-hover:text-primary">
             {product.name}
           </h3>
         </Link>
 
-        <div className="mt-3 flex items-center gap-2 text-sm">
+        {/* Rating */}
+        <div className="mt-2 flex items-center gap-2 text-sm">
           <RatingStars rating={rating} />
         </div>
 
-        <div className="mt-4 flex min-h-8 items-center gap-2">
+        {/* Price */}
+        <div className="mt-3 flex min-h-7 items-center gap-2">
           {discountPercentage !== null && (
             <span className="text-sm text-gray-400 line-through">
               {formatPrice(regularPrice)}
             </span>
           )}
 
-          <span className="text-xl font-extrabold text-primary">
+          <span className="text-lg font-extrabold text-primary">
             {formatPrice(currentPrice)}
           </span>
         </div>
 
+        {/* Add To Cart */}
         <button
           type="button"
           onClick={handleAddToCart}
           disabled={adding || outOfStock}
-          className="mt-6 w-full rounded-full bg-gray-100 px-4 py-3 text-sm font-extrabold tracking-wide text-primary transition hover:bg-primary hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-4 w-full rounded-full bg-gray-100 px-4 py-2.5 text-sm font-extrabold tracking-wide text-primary transition hover:bg-primary hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
         >
           {outOfStock
             ? "OUT OF STOCK"
