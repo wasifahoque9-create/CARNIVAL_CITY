@@ -81,6 +81,119 @@ type ExtendedReview = Review & {
   user?: ExtendedReviewUser | null;
 };
 
+/*
+ * Summernote normally creates HTML such as:
+ *
+ * <ul>
+ *   <li>Item one</li>
+ *   <li>Item two</li>
+ * </ul>
+ *
+ * or:
+ *
+ * <ol>
+ *   <li>Item one</li>
+ *   <li>Item two</li>
+ * </ol>
+ *
+ * Tailwind CSS resets the browser's default list markers.
+ * This function adds normal Tailwind classes to the generated
+ * Summernote HTML.
+ *
+ * If Summernote has already saved an inline list style such as:
+ *
+ * <ul style="list-style-type: circle;">
+ *
+ * we do NOT remove it. The inline style can therefore keep
+ * the style selected in Summernote.
+ */
+function prepareSummernoteHtml(
+  html: string,
+): string {
+  let result = html;
+
+  /*
+   * Add Tailwind classes to <ul>.
+   * If a class attribute already exists, append to it.
+   */
+  result = result.replace(
+    /<ul\b([^>]*)>/gi,
+    (_match, attributes: string) => {
+      if (
+        /\bclass\s*=\s*["'][^"']*["']/i.test(
+          attributes,
+        )
+      ) {
+        return `<ul${attributes.replace(
+          /\bclass\s*=\s*(["'])(.*?)\1/i,
+          (
+            _classMatch,
+            quote: string,
+            classNames: string,
+          ) =>
+            `class=${quote}${classNames} list-disc pl-6 my-4${quote}`,
+        )}>`;
+      }
+
+      return `<ul class="list-disc pl-6 my-4"${attributes}>`;
+    },
+  );
+
+  /*
+   * Add Tailwind classes to <ol>.
+   */
+  result = result.replace(
+    /<ol\b([^>]*)>/gi,
+    (_match, attributes: string) => {
+      if (
+        /\bclass\s*=\s*["'][^"']*["']/i.test(
+          attributes,
+        )
+      ) {
+        return `<ol${attributes.replace(
+          /\bclass\s*=\s*(["'])(.*?)\1/i,
+          (
+            _classMatch,
+            quote: string,
+            classNames: string,
+          ) =>
+            `class=${quote}${classNames} list-decimal pl-6 my-4${quote}`,
+        )}>`;
+      }
+
+      return `<ol class="list-decimal pl-6 my-4"${attributes}>`;
+    },
+  );
+
+  /*
+   * Add spacing to every list item.
+   */
+  result = result.replace(
+    /<li\b([^>]*)>/gi,
+    (_match, attributes: string) => {
+      if (
+        /\bclass\s*=\s*["'][^"']*["']/i.test(
+          attributes,
+        )
+      ) {
+        return `<li${attributes.replace(
+          /\bclass\s*=\s*(["'])(.*?)\1/i,
+          (
+            _classMatch,
+            quote: string,
+            classNames: string,
+          ) =>
+            `class=${quote}${classNames} my-1${quote}`,
+        )}>`;
+      }
+
+      return `<li class="my-1"${attributes}>`;
+    },
+  );
+
+  return result;
+}
+
 function getErrorMessage(
   error: unknown,
   fallback: string,
@@ -735,9 +848,11 @@ export default function ProductDetailPage() {
             {/* Summernote HTML description */}
             {product.description && (
               <div
-                className="prose prose-sm mt-6 max-w-none text-slate-600"
+                className="mt-6 max-w-none text-sm leading-6 text-slate-600"
                 dangerouslySetInnerHTML={{
-                  __html: product.description,
+                  __html: prepareSummernoteHtml(
+                    product.description,
+                  ),
                 }}
               />
             )}

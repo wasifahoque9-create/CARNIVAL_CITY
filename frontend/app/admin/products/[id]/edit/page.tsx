@@ -76,6 +76,116 @@ function makeSlug(value: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+/*
+|--------------------------------------------------------------------------
+| Prepare Summernote HTML
+|--------------------------------------------------------------------------
+|
+| Summernote correctly saves <ul>, <ol> and <li>.
+|
+| The problem is that Tailwind's preflight/browser styles can remove the
+| visible list markers.
+|
+| Instead of using normal CSS or Tailwind arbitrary selectors, we add
+| Tailwind utility classes directly to the generated HTML.
+|
+*/
+function prepareSummernoteHtml(html: string): string {
+  let result = html;
+
+  /*
+  |--------------------------------------------------------------------------
+  | Unordered lists
+  |--------------------------------------------------------------------------
+  */
+
+  result = result.replace(
+    /<ul\b([^>]*)>/gi,
+    (_match, attributes: string) => {
+      const hasClass =
+        /\bclass\s*=\s*["'][^"']*["']/i.test(
+          attributes,
+        );
+
+      if (hasClass) {
+        return `<ul${attributes.replace(
+          /\bclass\s*=\s*(["'])(.*?)\1/i,
+          (
+            _classMatch,
+            quote: string,
+            classNames: string,
+          ) =>
+            `class=${quote}${classNames} list-disc pl-6 my-4${quote}`,
+        )}>`;
+      }
+
+      return `<ul class="list-disc pl-6 my-4"${attributes}>`;
+    },
+  );
+
+  /*
+  |--------------------------------------------------------------------------
+  | Ordered lists
+  |--------------------------------------------------------------------------
+  */
+
+  result = result.replace(
+    /<ol\b([^>]*)>/gi,
+    (_match, attributes: string) => {
+      const hasClass =
+        /\bclass\s*=\s*["'][^"']*["']/i.test(
+          attributes,
+        );
+
+      if (hasClass) {
+        return `<ol${attributes.replace(
+          /\bclass\s*=\s*(["'])(.*?)\1/i,
+          (
+            _classMatch,
+            quote: string,
+            classNames: string,
+          ) =>
+            `class=${quote}${classNames} list-decimal pl-6 my-4${quote}`,
+        )}>`;
+      }
+
+      return `<ol class="list-decimal pl-6 my-4"${attributes}>`;
+    },
+  );
+
+  /*
+  |--------------------------------------------------------------------------
+  | List items
+  |--------------------------------------------------------------------------
+  */
+
+  result = result.replace(
+    /<li\b([^>]*)>/gi,
+    (_match, attributes: string) => {
+      const hasClass =
+        /\bclass\s*=\s*["'][^"']*["']/i.test(
+          attributes,
+        );
+
+      if (hasClass) {
+        return `<li${attributes.replace(
+          /\bclass\s*=\s*(["'])(.*?)\1/i,
+          (
+            _classMatch,
+            quote: string,
+            classNames: string,
+          ) =>
+            `class=${quote}${classNames} my-1${quote}`,
+        )}>`;
+      }
+
+      return `<li class="my-1"${attributes}>`;
+    },
+  );
+
+  return result;
+}
+
 function getToken(): string {
   if (typeof window === "undefined") {
     return "";
@@ -127,7 +237,9 @@ function unwrapResponse(response: any): any {
   );
 }
 
-function extractCategoryList(response: any): MainCategory[] {
+function extractCategoryList(
+  response: any,
+): MainCategory[] {
   const data =
     response?.data?.data ??
     response?.data ??
@@ -173,7 +285,9 @@ function getSubcategories(
   return [];
 }
 
-async function fetchProduct(id: number): Promise<any> {
+async function fetchProduct(
+  id: number,
+): Promise<any> {
   if (!Number.isFinite(id) || id <= 0) {
     throw new Error("Invalid product ID.");
   }
@@ -188,24 +302,31 @@ async function fetchProduct(id: number): Promise<any> {
     },
   );
 
-  const data = await response.json().catch(() => null);
+  const data = await response
+    .json()
+    .catch(() => null);
 
   if (!response.ok) {
     throw new Error(
-      data?.message ?? "Product could not be loaded.",
+      data?.message ??
+        "Product could not be loaded.",
     );
   }
 
   const product = unwrapResponse(data);
 
   if (!product?.id) {
-    throw new Error("Product could not be loaded.");
+    throw new Error(
+      "Product could not be loaded.",
+    );
   }
 
   return product;
 }
 
-async function fetchCategories(): Promise<MainCategory[]> {
+async function fetchCategories(): Promise<
+  MainCategory[]
+> {
   const response = await fetch(
     `${API_BASE}/categories`,
     {
@@ -218,11 +339,14 @@ async function fetchCategories(): Promise<MainCategory[]> {
     },
   );
 
-  const data = await response.json().catch(() => null);
+  const data = await response
+    .json()
+    .catch(() => null);
 
   if (!response.ok) {
     throw new Error(
-      data?.message ?? "Categories could not be loaded.",
+      data?.message ??
+        "Categories could not be loaded.",
     );
   }
 
@@ -231,7 +355,9 @@ async function fetchCategories(): Promise<MainCategory[]> {
   );
 }
 
-function imageUrl(image: ProductImagePreview): string {
+function imageUrl(
+  image: ProductImagePreview,
+): string {
   const url =
     image.url ||
     image.image_path ||
@@ -242,12 +368,18 @@ function imageUrl(image: ProductImagePreview): string {
   }
 
   if (/^https?:\/\//i.test(url)) {
-    return url.replace(/^http:\/\//i, "https://");
+    return url.replace(
+      /^http:\/\//i,
+      "https://",
+    );
   }
 
   const storageBase =
     process.env.NEXT_PUBLIC_STORAGE_URL ||
-    `${API_BASE.replace(/\/api\/?$/, "")}/storage`;
+    `${API_BASE.replace(
+      /\/api\/?$/,
+      "",
+    )}/storage`;
 
   return `${storageBase}/${url
     .replace(/^\/+/, "")
@@ -262,7 +394,10 @@ function productImages(
     product?.product_images ??
     [];
 
-  if (Array.isArray(images) && images.length > 0) {
+  if (
+    Array.isArray(images) &&
+    images.length > 0
+  ) {
     return images;
   }
 
@@ -313,7 +448,10 @@ async function updateProduct(
     );
 
     files.forEach((file) => {
-      formData.append("images[]", file);
+      formData.append(
+        "images[]",
+        file,
+      );
     });
 
     const response = await fetch(
@@ -380,10 +518,14 @@ export default function EditProductPage() {
     useState<MainCategory[]>([]);
 
   const [form, setForm] =
-    useState<EditProductForm>(initialForm);
+    useState<EditProductForm>(
+      initialForm,
+    );
 
   const [currentImages, setCurrentImages] =
-    useState<ProductImagePreview[]>([]);
+    useState<ProductImagePreview[]>(
+      [],
+    );
 
   const [selectedFiles, setSelectedFiles] =
     useState<File[]>([]);
@@ -401,10 +543,18 @@ export default function EditProductPage() {
     useState("");
 
   const descriptionRef =
-    useRef<HTMLTextAreaElement | null>(null);
+    useRef<HTMLTextAreaElement | null>(
+      null,
+    );
 
   const summernoteInitialized =
     useRef(false);
+
+  /*
+  |--------------------------------------------------------------------------
+  | Load product + categories
+  |--------------------------------------------------------------------------
+  */
 
   useEffect(() => {
     let cancelled = false;
@@ -414,7 +564,9 @@ export default function EditProductPage() {
         !Number.isFinite(productId) ||
         productId <= 0
       ) {
-        setError("Invalid product ID.");
+        setError(
+          "Invalid product ID.",
+        );
         setLoading(false);
         return;
       }
@@ -423,11 +575,13 @@ export default function EditProductPage() {
         setLoading(true);
         setError("");
 
-        const [product, categoryList] =
-          await Promise.all([
-            fetchProduct(productId),
-            fetchCategories(),
-          ]);
+        const [
+          product,
+          categoryList,
+        ] = await Promise.all([
+          fetchProduct(productId),
+          fetchCategories(),
+        ]);
 
         if (cancelled) {
           return;
@@ -438,35 +592,55 @@ export default function EditProductPage() {
           product?.category?.id ??
           "";
 
+        const description =
+          product?.description ?? "";
+
         setCategories(categoryList);
 
         setForm({
           category_id: categoryId
             ? String(categoryId)
             : "",
-          name: product?.name ?? "",
-          slug: product?.slug ?? "",
-          sku: product?.sku ?? "",
-          brand: product?.brand ?? "",
+
+          name:
+            product?.name ?? "",
+
+          slug:
+            product?.slug ?? "",
+
+          sku:
+            product?.sku ?? "",
+
+          brand:
+            product?.brand ?? "",
+
           price:
             product?.price !== null &&
             product?.price !== undefined
               ? String(product.price)
               : "",
+
           discount_price:
             product?.discount_price !== null &&
             product?.discount_price !== undefined
-              ? String(product.discount_price)
+              ? String(
+                  product.discount_price,
+                )
               : "",
+
           stock_qty:
             product?.stock_qty !== null &&
             product?.stock_qty !== undefined
-              ? String(product.stock_qty)
+              ? String(
+                  product.stock_qty,
+                )
               : "0",
+
           status:
-            product?.status ?? "active",
-          description:
-            product?.description ?? "",
+            product?.status ??
+            "active",
+
+          description,
         });
 
         setCurrentImages(
@@ -499,6 +673,12 @@ export default function EditProductPage() {
     };
   }, [productId]);
 
+  /*
+  |--------------------------------------------------------------------------
+  | Initialize Summernote
+  |--------------------------------------------------------------------------
+  */
+
   useEffect(() => {
     if (
       loading ||
@@ -512,6 +692,12 @@ export default function EditProductPage() {
 
     async function initializeSummernote() {
       try {
+        /*
+        |--------------------------------------------------------------------------
+        | Load Summernote stylesheet
+        |--------------------------------------------------------------------------
+        */
+
         const loadStylesheet = (
           href: string,
         ) => {
@@ -524,19 +710,32 @@ export default function EditProductPage() {
           }
 
           const link =
-            document.createElement("link");
+            document.createElement(
+              "link",
+            );
 
           link.rel = "stylesheet";
           link.href = href;
 
-          document.head.appendChild(link);
+          document.head.appendChild(
+            link,
+          );
         };
+
+        /*
+        |--------------------------------------------------------------------------
+        | Load JavaScript
+        |--------------------------------------------------------------------------
+        */
 
         const loadScript = (
           src: string,
         ): Promise<void> => {
           return new Promise(
-            (resolve, reject) => {
+            (
+              resolve,
+              reject,
+            ) => {
               const existingScript =
                 document.querySelector(
                   `script[src="${src}"]`,
@@ -554,7 +753,9 @@ export default function EditProductPage() {
                 existingScript.addEventListener(
                   "load",
                   () => resolve(),
-                  { once: true },
+                  {
+                    once: true,
+                  },
                 );
 
                 existingScript.addEventListener(
@@ -602,13 +803,27 @@ export default function EditProductPage() {
           "https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-lite.min.css",
         );
 
+        /*
+        |--------------------------------------------------------------------------
+        | jQuery
+        |--------------------------------------------------------------------------
+        */
+
         if (!window.jQuery) {
           await loadScript(
             "https://code.jquery.com/jquery-3.7.1.min.js",
           );
         }
 
-        if (!window.jQuery?.fn?.summernote) {
+        /*
+        |--------------------------------------------------------------------------
+        | Summernote
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+          !window.jQuery?.fn?.summernote
+        ) {
           await loadScript(
             "https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-lite.min.js",
           );
@@ -617,7 +832,8 @@ export default function EditProductPage() {
         if (
           cancelled ||
           !descriptionRef.current ||
-          !window.jQuery?.fn?.summernote
+          !window.jQuery?.fn
+            ?.summernote
         ) {
           return;
         }
@@ -628,13 +844,29 @@ export default function EditProductPage() {
         const textarea =
           descriptionRef.current;
 
+        /*
+        |--------------------------------------------------------------------------
+        | Initialize Summernote
+        |--------------------------------------------------------------------------
+        */
+
         $(textarea).summernote({
           placeholder:
             "Enter product description",
+
           height: 300,
+
           minHeight: 200,
+
           maxHeight: 500,
+
           focus: false,
+
+          /*
+          |--------------------------------------------------------------------------
+          | Formatting styles
+          |--------------------------------------------------------------------------
+          */
 
           styleTags: [
             "p",
@@ -648,11 +880,18 @@ export default function EditProductPage() {
             "h6",
           ],
 
+          /*
+          |--------------------------------------------------------------------------
+          | Toolbar
+          |--------------------------------------------------------------------------
+          */
+
           toolbar: [
             [
               "style",
               ["style"],
             ],
+
             [
               "font",
               [
@@ -662,18 +901,30 @@ export default function EditProductPage() {
                 "clear",
               ],
             ],
+
             [
               "fontname",
               ["fontname"],
             ],
+
             [
               "fontsize",
               ["fontsize"],
             ],
+
             [
               "color",
               ["color"],
             ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | IMPORTANT:
+            | ul = unordered/bullet list
+            | ol = ordered/numbered list
+            |--------------------------------------------------------------------------
+            */
+
             [
               "para",
               [
@@ -682,10 +933,12 @@ export default function EditProductPage() {
                 "paragraph",
               ],
             ],
+
             [
               "table",
               ["table"],
             ],
+
             [
               "insert",
               [
@@ -694,6 +947,7 @@ export default function EditProductPage() {
                 "video",
               ],
             ],
+
             [
               "view",
               [
@@ -704,18 +958,35 @@ export default function EditProductPage() {
             ],
           ],
 
+          /*
+          |--------------------------------------------------------------------------
+          | Summernote callbacks
+          |--------------------------------------------------------------------------
+          */
+
           callbacks: {
             onChange: (
               contents: string,
             ) => {
-              setForm((current) => ({
-                ...current,
-                description:
-                  contents,
-              }));
+              setForm(
+                (current) => ({
+                  ...current,
+                  description:
+                    contents,
+                }),
+              );
             },
           },
         });
+
+        /*
+        |--------------------------------------------------------------------------
+        | Load the saved product description
+        |--------------------------------------------------------------------------
+        |
+        | We explicitly put the existing description into Summernote.
+        |
+        */
 
         $(textarea).summernote(
           "code",
@@ -724,7 +995,9 @@ export default function EditProductPage() {
 
         summernoteInitialized.current =
           true;
-      } catch (summernoteError) {
+      } catch (
+        summernoteError
+      ) {
         console.error(
           "Summernote initialization failed:",
           summernoteError,
@@ -734,12 +1007,19 @@ export default function EditProductPage() {
 
     void initializeSummernote();
 
+    /*
+    |--------------------------------------------------------------------------
+    | Cleanup Summernote
+    |--------------------------------------------------------------------------
+    */
+
     return () => {
       cancelled = true;
 
       if (
         descriptionRef.current &&
-        window.jQuery?.fn?.summernote
+        window.jQuery?.fn
+          ?.summernote
       ) {
         const $ =
           window.jQuery;
@@ -754,7 +1034,9 @@ export default function EditProductPage() {
               "destroy",
             );
           }
-        } catch (destroyError) {
+        } catch (
+          destroyError
+        ) {
           console.error(
             "Summernote cleanup failed:",
             destroyError,
@@ -767,11 +1049,21 @@ export default function EditProductPage() {
     };
   }, [loading]);
 
+  /*
+  |--------------------------------------------------------------------------
+  | Revoke selected image preview URLs
+  |--------------------------------------------------------------------------
+  */
+
   useEffect(() => {
     return () => {
-      selectedPreviews.forEach((url) => {
-        URL.revokeObjectURL(url);
-      });
+      selectedPreviews.forEach(
+        (url) => {
+          URL.revokeObjectURL(
+            url,
+          );
+        },
+      );
     };
   }, [selectedPreviews]);
 
@@ -779,11 +1071,19 @@ export default function EditProductPage() {
     field: keyof EditProductForm,
     value: string,
   ) {
-    setForm((current) => ({
-      ...current,
-      [field]: value,
-    }));
+    setForm(
+      (current) => ({
+        ...current,
+        [field]: value,
+      }),
+    );
   }
+
+  /*
+  |--------------------------------------------------------------------------
+  | Image selection
+  |--------------------------------------------------------------------------
+  */
 
   function handleFileChange(
     event: ChangeEvent<HTMLInputElement>,
@@ -796,7 +1096,9 @@ export default function EditProductPage() {
       setError(
         "You may upload a maximum of 8 images.",
       );
+
       event.target.value = "";
+
       return;
     }
 
@@ -806,45 +1108,67 @@ export default function EditProductPage() {
       "image/webp",
     ];
 
-    const invalidFile = files.find(
-      (file) =>
-        !acceptedTypes.includes(file.type),
-    );
+    const invalidFile =
+      files.find(
+        (file) =>
+          !acceptedTypes.includes(
+            file.type,
+          ),
+      );
 
     if (invalidFile) {
       setError(
         "Images must be JPG, JPEG, or WebP.",
       );
+
       event.target.value = "";
+
       return;
     }
 
-    const oversizedFile = files.find(
-      (file) =>
-        file.size > 4 * 1024 * 1024,
-    );
+    const oversizedFile =
+      files.find(
+        (file) =>
+          file.size >
+          4 * 1024 * 1024,
+      );
 
     if (oversizedFile) {
       setError(
         "Each image must not be larger than 4 MB.",
       );
+
       event.target.value = "";
+
       return;
     }
 
-    selectedPreviews.forEach((url) => {
-      URL.revokeObjectURL(url);
-    });
+    selectedPreviews.forEach(
+      (url) => {
+        URL.revokeObjectURL(
+          url,
+        );
+      },
+    );
 
     setError("");
+
     setSelectedFiles(files);
 
     setSelectedPreviews(
       files.map((file) =>
-        URL.createObjectURL(file),
+        URL.createObjectURL(
+          file,
+        ),
       ),
     );
   }
+
+  /*
+  |--------------------------------------------------------------------------
+  | Submit product update
+  |--------------------------------------------------------------------------
+  */
 
   async function handleSubmit(
     event: FormEvent<HTMLFormElement>,
@@ -853,29 +1177,42 @@ export default function EditProductPage() {
 
     setError("");
 
+    /*
+    |--------------------------------------------------------------------------
+    | IMPORTANT:
+    | Get the latest HTML directly from Summernote before saving.
+    |--------------------------------------------------------------------------
+    */
+
     let latestDescription =
       form.description;
 
     if (
       descriptionRef.current &&
-      window.jQuery?.fn?.summernote
+      window.jQuery?.fn
+        ?.summernote
     ) {
       latestDescription =
         window.jQuery(
           descriptionRef.current,
-        ).summernote("code");
+        ).summernote(
+          "code",
+        );
 
-      setForm((current) => ({
-        ...current,
-        description:
-          latestDescription,
-      }));
+      setForm(
+        (current) => ({
+          ...current,
+          description:
+            latestDescription,
+        }),
+      );
     }
 
     if (!form.category_id) {
       setError(
         "Please select a product category.",
       );
+
       return;
     }
 
@@ -883,6 +1220,7 @@ export default function EditProductPage() {
       setError(
         "Please enter a product name.",
       );
+
       return;
     }
 
@@ -893,21 +1231,48 @@ export default function EditProductPage() {
         category_id: Number(
           form.category_id,
         ),
-        name: form.name.trim(),
+
+        name:
+          form.name.trim(),
+
         slug:
           form.slug.trim() ||
           makeSlug(form.name),
-        sku: form.sku.trim(),
-        brand: form.brand.trim(),
-        price: Number(form.price),
+
+        sku:
+          form.sku.trim(),
+
+        brand:
+          form.brand.trim(),
+
+        price:
+          Number(form.price),
+
         discount_price:
           form.discount_price.trim()
-            ? Number(form.discount_price)
+            ? Number(
+                form.discount_price,
+              )
             : null,
-        stock_qty: Number(
-          form.stock_qty,
-        ),
-        status: form.status,
+
+        stock_qty:
+          Number(
+            form.stock_qty,
+          ),
+
+        status:
+          form.status,
+
+        /*
+        |--------------------------------------------------------------------------
+        | Save the original Summernote HTML.
+        |--------------------------------------------------------------------------
+        |
+        | We DO NOT modify the HTML before sending it to Laravel.
+        | Therefore <ul>, <ol>, <li>, formatting, etc. remain stored.
+        |
+        */
+
         description:
           latestDescription,
       };
@@ -918,9 +1283,14 @@ export default function EditProductPage() {
         selectedFiles,
       );
 
-      router.push("/admin/products");
+      router.push(
+        "/admin/products",
+      );
+
       router.refresh();
-    } catch (submitError) {
+    } catch (
+      submitError
+    ) {
       console.error(
         "Product update failed:",
         submitError,
@@ -936,10 +1306,13 @@ export default function EditProductPage() {
     }
   }
 
-  const subcategories = categories.flatMap(
-    (mainCategory) =>
-      getSubcategories(mainCategory),
-  );
+  const subcategories =
+    categories.flatMap(
+      (mainCategory) =>
+        getSubcategories(
+          mainCategory,
+        ),
+    );
 
   if (loading) {
     return <PageLoader />;
@@ -972,13 +1345,17 @@ export default function EditProductPage() {
           )}
 
           <div className="grid gap-5 md:grid-cols-2">
+            {/* Category */}
+
             <div>
               <label className="mb-2 block text-sm font-bold text-slate-700">
                 Product Category
               </label>
 
               <select
-                value={form.category_id}
+                value={
+                  form.category_id
+                }
                 onChange={(event) =>
                   updateForm(
                     "category_id",
@@ -993,17 +1370,27 @@ export default function EditProductPage() {
                 </option>
 
                 {subcategories.map(
-                  (subcategory) => (
+                  (
+                    subcategory,
+                  ) => (
                     <option
-                      key={subcategory.id}
-                      value={subcategory.id}
+                      key={
+                        subcategory.id
+                      }
+                      value={
+                        subcategory.id
+                      }
                     >
-                      {subcategory.name}
+                      {
+                        subcategory.name
+                      }
                     </option>
                   ),
                 )}
               </select>
             </div>
+
+            {/* Product name */}
 
             <div>
               <label className="mb-2 block text-sm font-bold text-slate-700">
@@ -1011,7 +1398,9 @@ export default function EditProductPage() {
               </label>
 
               <input
-                value={form.name}
+                value={
+                  form.name
+                }
                 onChange={(event) =>
                   updateForm(
                     "name",
@@ -1023,13 +1412,17 @@ export default function EditProductPage() {
               />
             </div>
 
+            {/* SKU */}
+
             <div>
               <label className="mb-2 block text-sm font-bold text-slate-700">
                 SKU
               </label>
 
               <input
-                value={form.sku}
+                value={
+                  form.sku
+                }
                 onChange={(event) =>
                   updateForm(
                     "sku",
@@ -1041,13 +1434,17 @@ export default function EditProductPage() {
               />
             </div>
 
+            {/* Brand */}
+
             <div>
               <label className="mb-2 block text-sm font-bold text-slate-700">
                 Brand
               </label>
 
               <input
-                value={form.brand}
+                value={
+                  form.brand
+                }
                 onChange={(event) =>
                   updateForm(
                     "brand",
@@ -1058,6 +1455,8 @@ export default function EditProductPage() {
               />
             </div>
 
+            {/* Price */}
+
             <div>
               <label className="mb-2 block text-sm font-bold text-slate-700">
                 Price
@@ -1067,7 +1466,9 @@ export default function EditProductPage() {
                 type="number"
                 min="0.01"
                 step="0.01"
-                value={form.price}
+                value={
+                  form.price
+                }
                 onChange={(event) =>
                   updateForm(
                     "price",
@@ -1078,6 +1479,8 @@ export default function EditProductPage() {
                 required
               />
             </div>
+
+            {/* Discount */}
 
             <div>
               <label className="mb-2 block text-sm font-bold text-slate-700">
@@ -1102,6 +1505,8 @@ export default function EditProductPage() {
               />
             </div>
 
+            {/* Stock */}
+
             <div>
               <label className="mb-2 block text-sm font-bold text-slate-700">
                 Stock quantity
@@ -1111,7 +1516,9 @@ export default function EditProductPage() {
                 type="number"
                 min="0"
                 step="1"
-                value={form.stock_qty}
+                value={
+                  form.stock_qty
+                }
                 onChange={(event) =>
                   updateForm(
                     "stock_qty",
@@ -1123,13 +1530,17 @@ export default function EditProductPage() {
               />
             </div>
 
+            {/* Status */}
+
             <div>
               <label className="mb-2 block text-sm font-bold text-slate-700">
                 Status
               </label>
 
               <select
-                value={form.status}
+                value={
+                  form.status
+                }
                 onChange={(event) =>
                   updateForm(
                     "status",
@@ -1153,14 +1564,22 @@ export default function EditProductPage() {
             </div>
           </div>
 
+          {/* ============================================================
+              DESCRIPTION / SUMMERNOTE
+              ============================================================ */}
+
           <div className="mt-5">
             <label className="mb-2 block text-sm font-bold text-slate-700">
               Description
             </label>
 
             <textarea
-              ref={descriptionRef}
-              defaultValue={form.description}
+              ref={
+                descriptionRef
+              }
+              defaultValue={
+                form.description
+              }
               onChange={(event) =>
                 updateForm(
                   "description",
@@ -1172,15 +1591,21 @@ export default function EditProductPage() {
             />
           </div>
 
+          {/* Current images */}
+
           <div className="mt-6">
             <p className="mb-3 text-sm font-bold text-slate-700">
               Current images
             </p>
 
-            {currentImages.length > 0 ? (
+            {currentImages.length >
+            0 ? (
               <div className="flex flex-wrap gap-4">
                 {currentImages.map(
-                  (image, index) => (
+                  (
+                    image,
+                    index,
+                  ) => (
                     <div
                       key={
                         image.id ??
@@ -1222,6 +1647,8 @@ export default function EditProductPage() {
             )}
           </div>
 
+          {/* Replace images */}
+
           <div className="mt-6">
             <label className="mb-2 block text-sm font-bold text-slate-700">
               Replace product images
@@ -1251,8 +1678,8 @@ export default function EditProductPage() {
             </label>
 
             <p className="mt-2 text-xs text-slate-500">
-              Maximum 8 images and 4 MB
-              per image.
+              Maximum 8 images and
+              4 MB per image.
             </p>
 
             {selectedPreviews.length >
@@ -1264,21 +1691,28 @@ export default function EditProductPage() {
                     index,
                   ) => (
                     <div
-                      key={preview}
+                      key={
+                        preview
+                      }
                     >
                       <div className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
                         <img
-                          src={preview}
+                          src={
+                            preview
+                          }
                           alt={`Selected image ${
-                            index + 1
+                            index +
+                            1
                           }`}
                           className="h-full w-full object-contain p-2"
                         />
                       </div>
 
-                      {index === 0 && (
+                      {index ===
+                        0 && (
                         <p className="mt-2 text-xs font-bold text-green-600">
-                          New primary image
+                          New primary
+                          image
                         </p>
                       )}
                     </div>
@@ -1287,6 +1721,8 @@ export default function EditProductPage() {
               </div>
             )}
           </div>
+
+          {/* Buttons */}
 
           <div className="mt-8 flex justify-end gap-3 border-t border-slate-200 pt-6">
             <button
