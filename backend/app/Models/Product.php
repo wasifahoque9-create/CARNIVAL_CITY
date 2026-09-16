@@ -5,9 +5,9 @@ namespace App\Models;
 use App\Enums\ProductStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+
 class Product extends Model
 {
     protected $fillable = [
@@ -35,45 +35,63 @@ class Product extends Model
         ];
     }
 
+    /**
+     * Get the effective selling price.
+     */
     public function effectivePrice(): float
     {
         return (float) ($this->discount_price ?? $this->price);
     }
 
+    /**
+     * Product belongs to one category.
+     *
+     * In our system this should be a subcategory.
+     */
     public function category(): BelongsTo
     {
-        return $this->belongsTo(Category::class);
+        return $this->belongsTo(Category::class, 'category_id');
     }
 
-    public function categories(): BelongsToMany
-    {
-        return $this->belongsToMany(Category::class, 'category_product');
-    }
-
+    /**
+     * Product images.
+     */
     public function images(): HasMany
     {
-        return $this->hasMany(ProductImage::class);
+        return $this->hasMany(ProductImage::class, 'product_id');
     }
 
+    /**
+     * Product variants.
+     */
     public function variants(): HasMany
     {
-        return $this->hasMany(ProductVariant::class);
+        return $this->hasMany(ProductVariant::class, 'product_id');
     }
 
+    /**
+     * All product reviews.
+     */
     public function reviews(): HasMany
     {
-        return $this->hasMany(Review::class);
+        return $this->hasMany(Review::class, 'product_id');
     }
 
+    /**
+     * Approved product reviews.
+     */
     public function approvedReviews(): HasMany
     {
-        return $this->hasMany(Review::class)->where('status', 'approved');
+        return $this->hasMany(Review::class, 'product_id')
+            ->where('status', 'approved');
     }
- 
 
-public function primaryImage(): HasOne
-{
-    return $this->hasOne(ProductImage::class)
-        ->where('is_primary', true);
-}
+    /**
+     * Primary product image.
+     */
+    public function primaryImage(): HasOne
+    {
+        return $this->hasOne(ProductImage::class, 'product_id')
+            ->where('is_primary', true);
+    }
 }

@@ -18,7 +18,6 @@ const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/products", label: "Products", icon: Package },
   { href: "/admin/banners", label: "Banners", icon: ImageIcon },
-  { href: "/admin/categories", label: "Categories", icon: Tag },
   { href: "/admin/quotations", label: "Quotations", icon: Package },
   { href: "/admin/orders", label: "Orders", icon: ShoppingCart },
   { href: "/admin/reviews", label: "Reviews", icon: Star },
@@ -32,20 +31,38 @@ const navItems = [
 
 export default function AdminSidebar() {
   const pathname = usePathname();
-
   const [mobileOpen, setMobileOpen] = useState(false);
+
   const [ordersOpen, setOrdersOpen] = useState(
     pathname.startsWith("/admin/orders"),
   );
 
   const ordersActive = pathname.startsWith("/admin/orders");
 
+  const categoryPages = [
+    {
+      href: "/admin/categories",
+      label: "Shop by Category",
+    },
+    {
+      href: "/admin/categories/products",
+      label: "Products by Category",
+    },
+  ];
+
+  const categoriesActive = categoryPages.some((item) =>
+    pathname.startsWith(item.href),
+  );
+
+  const [categoriesOpen, setCategoriesOpen] =
+    useState(categoriesActive);
+
   return (
     <>
       {/* Mobile menu button */}
       <button
         type="button"
-        className="fixed bottom-4 right-4 z-40 rounded-full bg-primary p-3 text-white shadow-lg lg:hidden"
+        className="fixed bottom-4 right-4 z-50 rounded-full bg-primary p-3 text-white shadow-lg lg:hidden"
         onClick={() => setMobileOpen((current) => !current)}
         aria-label="Toggle admin menu"
       >
@@ -54,28 +71,33 @@ export default function AdminSidebar() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-primary text-white transition-transform lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 w-64 bg-primary text-white transition-transform duration-300 lg:translate-x-0 ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <div className="flex h-full flex-col">
           {/* Header */}
-          <div className="border-b border-primary-light px-6 py-5">
-            <Link href="/admin" className="text-lg font-bold">
+          <div className="shrink-0 border-b border-primary-light px-6 py-5">
+            <Link
+              href="/admin"
+              className="text-lg font-bold"
+              onClick={() => setMobileOpen(false)}
+            >
               Admin Panel
             </Link>
 
             <Link
               href="/"
               className="mt-1 block text-xs text-white/60 transition hover:text-secondary"
+              onClick={() => setMobileOpen(false)}
             >
               ← Back to store
             </Link>
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 space-y-1 px-3 py-4">
-            {/* Dashboard, Products, Banners, Categories */}
+          <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+            {/* Dashboard, Products, Banners, Quotations */}
             {navItems.slice(0, 4).map((item) => {
               const active =
                 item.href === "/admin"
@@ -101,7 +123,71 @@ export default function AdminSidebar() {
               );
             })}
 
-            {/* Orders dropdown */}
+            {/* Categories Dropdown */}
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() =>
+                  setCategoriesOpen((current) => !current)
+                }
+                className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                  categoriesActive
+                    ? "bg-secondary text-white"
+                    : "text-white/80 hover:bg-primary-light hover:text-white"
+                }`}
+                aria-expanded={categoriesOpen}
+              >
+                <span className="flex items-center gap-3">
+                  <Tag size={18} />
+                  <span>Categories</span>
+                </span>
+
+                <span
+                  className={`text-xs transition-transform duration-200 ${
+                    categoriesOpen ? "rotate-180" : ""
+                  }`}
+                >
+                  ▼
+                </span>
+              </button>
+
+              {/* Category Submenu */}
+              {categoriesOpen && (
+                <div className="mt-1 space-y-1 pl-9">
+                  <Link
+                    href="/admin/categories"
+                    onClick={() => setMobileOpen(false)}
+                    className={`block rounded-lg px-3 py-2 text-sm transition-colors ${
+                      pathname === "/admin/categories" ||
+                      (pathname.startsWith("/admin/categories/") &&
+                        !pathname.startsWith(
+                          "/admin/categories/products",
+                        ))
+                        ? "bg-primary-light text-white"
+                        : "text-white/70 hover:bg-primary-light hover:text-white"
+                    }`}
+                  >
+                    Shop by Category
+                  </Link>
+
+                  <Link
+                    href="/admin/categories/products"
+                    onClick={() => setMobileOpen(false)}
+                    className={`block rounded-lg px-3 py-2 text-sm transition-colors ${
+                      pathname.startsWith(
+                        "/admin/categories/products",
+                      )
+                        ? "bg-primary-light text-white"
+                        : "text-white/70 hover:bg-primary-light hover:text-white"
+                    }`}
+                  >
+                    Products by Category
+                  </Link>
+                </div>
+              )}
+            </div>
+
+            {/* Orders Dropdown */}
             <div>
               <button
                 type="button"
@@ -162,10 +248,7 @@ export default function AdminSidebar() {
 
             {/* Remaining navigation items */}
             {navItems
-              .slice(4)
-              .filter(
-                (item) => item.href !== "/admin/orders",
-              )
+              .slice(5)
               .map((item) => {
                 const active = pathname.startsWith(item.href);
                 const Icon = item.icon;
@@ -192,10 +275,8 @@ export default function AdminSidebar() {
 
       {/* Mobile overlay */}
       {mobileOpen && (
-        <button
-          type="button"
-          aria-label="Close admin menu"
-          className="fixed inset-0 z-20 bg-black/40 lg:hidden"
+        <div
+          className="fixed inset-0 z-30 bg-black/40 lg:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}

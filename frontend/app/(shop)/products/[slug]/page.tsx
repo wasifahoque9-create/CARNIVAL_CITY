@@ -47,7 +47,7 @@ import {
   getVariantLabel,
 } from "@/lib/api";
 
-import { useCart } from "@/lib/cart"; // ✅ added
+import { useCart } from "@/lib/cart";
 
 import type {
   Product,
@@ -80,6 +80,119 @@ type ExtendedReviewUser = {
 type ExtendedReview = Review & {
   user?: ExtendedReviewUser | null;
 };
+
+/*
+ * Summernote normally creates HTML such as:
+ *
+ * <ul>
+ *   <li>Item one</li>
+ *   <li>Item two</li>
+ * </ul>
+ *
+ * or:
+ *
+ * <ol>
+ *   <li>Item one</li>
+ *   <li>Item two</li>
+ * </ol>
+ *
+ * Tailwind CSS resets the browser's default list markers.
+ * This function adds normal Tailwind classes to the generated
+ * Summernote HTML.
+ *
+ * If Summernote has already saved an inline list style such as:
+ *
+ * <ul style="list-style-type: circle;">
+ *
+ * we do NOT remove it. The inline style can therefore keep
+ * the style selected in Summernote.
+ */
+function prepareSummernoteHtml(
+  html: string,
+): string {
+  let result = html;
+
+  /*
+   * Add Tailwind classes to <ul>.
+   * If a class attribute already exists, append to it.
+   */
+  result = result.replace(
+    /<ul\b([^>]*)>/gi,
+    (_match, attributes: string) => {
+      if (
+        /\bclass\s*=\s*["'][^"']*["']/i.test(
+          attributes,
+        )
+      ) {
+        return `<ul${attributes.replace(
+          /\bclass\s*=\s*(["'])(.*?)\1/i,
+          (
+            _classMatch,
+            quote: string,
+            classNames: string,
+          ) =>
+            `class=${quote}${classNames} list-disc pl-6 my-4${quote}`,
+        )}>`;
+      }
+
+      return `<ul class="list-disc pl-6 my-4"${attributes}>`;
+    },
+  );
+
+  /*
+   * Add Tailwind classes to <ol>.
+   */
+  result = result.replace(
+    /<ol\b([^>]*)>/gi,
+    (_match, attributes: string) => {
+      if (
+        /\bclass\s*=\s*["'][^"']*["']/i.test(
+          attributes,
+        )
+      ) {
+        return `<ol${attributes.replace(
+          /\bclass\s*=\s*(["'])(.*?)\1/i,
+          (
+            _classMatch,
+            quote: string,
+            classNames: string,
+          ) =>
+            `class=${quote}${classNames} list-decimal pl-6 my-4${quote}`,
+        )}>`;
+      }
+
+      return `<ol class="list-decimal pl-6 my-4"${attributes}>`;
+    },
+  );
+
+  /*
+   * Add spacing to every list item.
+   */
+  result = result.replace(
+    /<li\b([^>]*)>/gi,
+    (_match, attributes: string) => {
+      if (
+        /\bclass\s*=\s*["'][^"']*["']/i.test(
+          attributes,
+        )
+      ) {
+        return `<li${attributes.replace(
+          /\bclass\s*=\s*(["'])(.*?)\1/i,
+          (
+            _classMatch,
+            quote: string,
+            classNames: string,
+          ) =>
+            `class=${quote}${classNames} my-1${quote}`,
+        )}>`;
+      }
+
+      return `<li class="my-1"${attributes}>`;
+    },
+  );
+
+  return result;
+}
 
 function getErrorMessage(
   error: unknown,
@@ -251,7 +364,7 @@ export default function ProductDetailPage() {
     ? params.slug[0]
     : String(params.slug ?? "");
 
-  const { refreshCart } = useCart(); // ✅ added
+  const { refreshCart } = useCart();
 
   const [product, setProduct] =
     useState<Product | null>(null);
@@ -316,20 +429,33 @@ export default function ProductDetailPage() {
 
         if (!pageIsActive) return;
 
-        setProduct(productData);
-        setReviews(reviewData);
+      setProduct(productData);
+      setReviews(reviewData);
 
-        setActiveImage(
-          getProductImage(productData),
-        );
+/*
+ * The product-detail hero image should use
+ * the optimized MAIN image, not the thumbnail.
+ *
+ * image.url = optimized main image (max 1600x1600)
+ */
+const primaryImage =
+  productData.images?.find(
+    (image) => image.is_primary,
+  ) ??
+  productData.images?.[0];
 
-        if (
-          productData.variants?.length
-        ) {
-          setSelectedVariant(
-            productData.variants[0],
-          );
-        }
+setActiveImage(
+  primaryImage?.url ??
+    getProductImage(productData),
+);
+
+if (
+  productData.variants?.length
+) {
+  setSelectedVariant(
+    productData.variants[0],
+  );
+}
       } catch (error) {
         console.error(
           "Unable to load product:",
@@ -385,7 +511,7 @@ export default function ProductDetailPage() {
         quantity,
       });
 
-      await refreshCart(); // ✅ added — syncs Header's cart count instantly
+      await refreshCart();
 
       setCartNotice({
         type: "success",
@@ -563,6 +689,7 @@ export default function ProductDetailPage() {
   return (
     <main className="min-h-screen bg-slate-50">
       {/* Breadcrumb */}
+           {/* Breadcrumb */}
       <div className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center gap-2 px-4 py-4 text-sm text-slate-500 sm:px-6 lg:px-8">
           <Link
@@ -581,6 +708,20 @@ export default function ProductDetailPage() {
             Products
           </Link>
 
+          {product.category?.name &&
+            product.category?.slug && (
+              <>
+                <FaChevronRight size={10} />
+
+                <Link
+                  href={`/categories/${product.category.slug}`}
+                  className="transition hover:text-[#EA580C]"
+                >
+                  {product.category.name}
+                </Link>
+              </>
+            )}
+
           <FaChevronRight size={10} />
 
           <span className="max-w-[180px] truncate font-semibold text-[#121358] sm:max-w-md">
@@ -594,8 +735,8 @@ export default function ProductDetailPage() {
         <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
           {/* Product gallery */}
           <div>
-            <div className="relative overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm sm:p-7">
-              <div className="absolute left-6 top-6 z-10">
+            <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-5">
+              <div className="absolute left-4 top-4 z-10 sm:left-5 sm:top-5">
                 {inStock ? (
                   <span className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-bold text-emerald-700">
                     <FaCheckCircle />
@@ -608,30 +749,37 @@ export default function ProductDetailPage() {
                 )}
               </div>
 
-              <div className="aspect-square overflow-hidden rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100">
+              <div className="h-[360px] overflow-hidden rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 sm:h-[420px] lg:h-[460px]">
                 <SafeProductImage
                   src={
                     activeImage ||
                     getProductImage(product)
                   }
                   alt={product.name}
-                  className="object-contain p-4 transition duration-500 hover:scale-105 sm:p-8"
+                  className="object-contain p-3 transition duration-500 hover:scale-105 sm:p-6"
                 />
               </div>
             </div>
 
             {images.length > 1 && (
               <div className="mt-4 flex gap-3 overflow-x-auto pb-2">
-                {images.map((image) => {
-                  const source =
-                    image.url ||
-                    getProductImage({
-                      ...product,
-                      images: [image],
-                    });
+               {images.map((image) => {
+  /*
+   * Small gallery buttons should use the
+   * optimized thumbnail image.
+   *
+   * thumbnail_url = max 500x500
+   */
+  const source =
+    image.thumbnail_url ||
+    image.url ||
+    getProductImage({
+      ...product,
+      images: [image],
+    });
 
-                  const selected =
-                    activeImage === source;
+  const selected =
+    activeImage === source;
 
                   return (
                     <button
@@ -639,8 +787,15 @@ export default function ProductDetailPage() {
                       type="button"
                       aria-label={`View another image of ${product.name}`}
                       onClick={() =>
-                        setActiveImage(source)
-                      }
+  setActiveImage(
+    image.url ||
+      image.thumbnail_url ||
+      getProductImage({
+        ...product,
+        images: [image],
+      }),
+  )
+}
                       className={`relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border-2 bg-white p-1.5 transition ${
                         selected
                           ? "border-[#EA580C] shadow-md"
@@ -732,10 +887,16 @@ export default function ProductDetailPage() {
               </p>
             </div>
 
+            {/* Summernote HTML description */}
             {product.description && (
-              <p className="mt-6 text-sm leading-7 text-slate-600">
-                {product.description}
-              </p>
+              <div
+                className="mt-6 max-w-none text-sm leading-6 text-slate-600"
+                dangerouslySetInnerHTML={{
+                  __html: prepareSummernoteHtml(
+                    product.description,
+                  ),
+                }}
+              />
             )}
 
             {hasVariants && (
@@ -1154,7 +1315,10 @@ export default function ProductDetailPage() {
 
                             <div className="mt-5 flex gap-1">
                               {[
-                                1, 2, 3, 4,
+                                1,
+                                2,
+                                3,
+                                4,
                                 5,
                               ].map(
                                 (star) => (

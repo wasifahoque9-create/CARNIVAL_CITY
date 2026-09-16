@@ -1,6 +1,5 @@
 "use client";
 
-
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -15,10 +14,10 @@ import {
   ChevronRight,
 } from "lucide-react";
 
-// Swiper
 import { Swiper, SwiperSlide } from "swiper/react";
 import type { Swiper as SwiperType } from "swiper";
-import { Autoplay, Navigation } from "swiper/modules";
+import { Autoplay, Navigation, Mousewheel } from "swiper/modules";
+
 import "swiper/css";
 import "swiper/css/navigation";
 
@@ -27,30 +26,35 @@ import { PageLoader } from "@/components/ui/Spinner";
 import { bannerApi, catalogApi, getBannerImage } from "@/lib/api";
 import type { Banner, Category } from "@/types";
 
-
 const categoryIcons: Record<string, string> = {
-  laptop: "??",
-  laptops: "??",
-  pc: "???",
-  desktop: "???",
-  desktops: "???",
-  mobile: "??",
-  mobiles: "??",
-  phone: "??",
-  smartphone: "??",
-  earbuds: "??",
-  headphone: "??",
-  headphones: "??",
-  accessory: "??",
-  accessories: "??",
-  watch: "?",
-  smartwatch: "?",
-  tablet: "??",
-  camera: "??",
+  laptop: "💻",
+  laptops: "💻",
+  pc: "🖥️",
+  desktop: "🖥️",
+  desktops: "🖥️",
+  mobile: "📱",
+  mobiles: "📱",
+  phone: "📱",
+  smartphone: "📱",
+  earbuds: "🎧",
+  headphone: "🎧",
+  headphones: "🎧",
+  accessory: "🔌",
+  accessories: "🔌",
+  watch: "⌚",
+  smartwatch: "⌚",
+  tablet: "📱",
+  camera: "📷",
 };
 
 type CategoryWithImage = Category & {
   image_url?: string | null;
+  subcategories?: Category[];
+  children?: Category[];
+};
+
+type Subcategory = CategoryWithImage & {
+  parent_id: number;
 };
 
 type PromoImageProps = {
@@ -93,9 +97,6 @@ function PromoImage({
   );
 }
 
-// Full-cover image used only by the large hero banner.
-// Unlike PromoImage, this intentionally uses object-cover so the uploaded
-// banner fills the complete hero section.
 function HeroBannerImage({
   src,
   alt,
@@ -128,11 +129,7 @@ function HeroBannerImage({
     />
   );
 }
-// ---------------------------------------------------------------------------
-// Hero slide shape used for rendering. This is filled either from the admin
-// -managed Banner API, or � if no banners exist yet � from the static
-// defaults below, so the homepage never looks empty on a fresh install.
-// ---------------------------------------------------------------------------
+
 type HeroSlideData = {
   key: string;
   tag: string;
@@ -182,7 +179,7 @@ function bannerToSlide(banner: Banner): HeroSlideData {
         : null,
     discount: banner.discount_text,
     image: getBannerImage(banner),
-    fallback: banner.fallback_emoji || "???",
+    fallback: banner.fallback_emoji || "🛍️",
     ctaHref: banner.cta_link || "#shop-by-category",
     ctaText: banner.cta_text || "Shop Now",
     secondaryCtaHref: banner.secondary_cta_link || "/products",
@@ -190,7 +187,6 @@ function bannerToSlide(banner: Banner): HeroSlideData {
   };
 }
 
-// Used only until the admin adds real banners (or if the banners API fails).
 const defaultHeroSlides: HeroSlideData[] = [
   {
     key: "default-1",
@@ -202,7 +198,7 @@ const defaultHeroSlides: HeroSlideData[] = [
     price: "236",
     discount: "Save up to 25%",
     image: "/mobile.png",
-    fallback: "??",
+    fallback: "📱",
     ctaHref: "#shop-by-category",
     ctaText: "Shop Now",
     secondaryCtaHref: "/products",
@@ -218,7 +214,7 @@ const defaultHeroSlides: HeroSlideData[] = [
     price: "412",
     discount: "Save up to 20%",
     image: "/laptp2.png",
-    fallback: "??",
+    fallback: "💻",
     ctaHref: "#shop-by-category",
     ctaText: "Shop Now",
     secondaryCtaHref: "/products",
@@ -233,7 +229,7 @@ const defaultHeroSlides: HeroSlideData[] = [
     price: "189",
     discount: "Save up to 30%",
     image: "/sle1.png",
-    fallback: "??",
+    fallback: "📷",
     ctaHref: "#shop-by-category",
     ctaText: "Shop Now",
     secondaryCtaHref: "/products",
@@ -242,12 +238,16 @@ const defaultHeroSlides: HeroSlideData[] = [
 ];
 
 export default function HomePage() {
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [heroSlides, setHeroSlides] = useState<HeroSlideData[]>(defaultHeroSlides);
+  const [heroSlides, setHeroSlides] =
+    useState<HeroSlideData[]>(defaultHeroSlides);
   const [activeHeroSlide, setActiveHeroSlide] = useState(0);
-  const [categorySwiper, setCategorySwiper] = useState<SwiperType | null>(null);
+
+  const [categorySwiper, setCategorySwiper] =
+    useState<SwiperType | null>(null);
+
   const [isCategoryStart, setIsCategoryStart] = useState(true);
   const [isCategoryEnd, setIsCategoryEnd] = useState(false);
 
@@ -261,9 +261,38 @@ export default function HomePage() {
 
         const categoryData = await catalogApi.getCategories();
 
-        if (pageIsActive) {
-          setCategories(categoryData);
+        if (!pageIsActive) {
+          return;
         }
+
+        const extractedSubcategories: Subcategory[] = [];
+
+        categoryData.forEach((mainCategory) => {
+          const category = mainCategory as CategoryWithImage;
+
+          const nestedCategories = Array.isArray(category.subcategories)
+            ? category.subcategories
+            : Array.isArray(category.children)
+              ? category.children
+              : [];
+
+          nestedCategories.forEach((subcategory) => {
+            if (
+              subcategory &&
+              subcategory.id !== undefined &&
+              subcategory.parent_id !== null &&
+              subcategory.parent_id !== undefined
+            ) {
+              extractedSubcategories.push({
+                ...(subcategory as Subcategory),
+                parent_id:
+                  Number(subcategory.parent_id) || Number(category.id),
+              });
+            }
+          });
+        });
+
+        setSubcategories(extractedSubcategories);
       } catch (error) {
         console.error("Unable to load categories:", error);
 
@@ -286,8 +315,6 @@ export default function HomePage() {
     };
   }, []);
 
-  // Loaded independently from categories: the hero already has sensible
-  // static defaults, so there's no need to block the whole page on this.
   useEffect(() => {
     let pageIsActive = true;
 
@@ -295,12 +322,15 @@ export default function HomePage() {
       try {
         const banners = await bannerApi.getActive();
 
-        if (pageIsActive && Array.isArray(banners) && banners.length > 0) {
+        if (
+          pageIsActive &&
+          Array.isArray(banners) &&
+          banners.length > 0
+        ) {
           setHeroSlides(banners.map(bannerToSlide));
         }
       } catch (error) {
         console.error("Unable to load banners:", error);
-        // Falls back to defaultHeroSlides, already set as initial state.
       }
     }
 
@@ -315,50 +345,74 @@ export default function HomePage() {
     return <PageLoader />;
   }
 
+  const desktopCategorySlides = Math.min(subcategories.length, 6);
+  const tabletCategorySlides = Math.min(subcategories.length, 4.2);
+  const mobileCategorySlides = Math.min(subcategories.length, 3.2);
+  const smallMobileCategorySlides = Math.min(
+    subcategories.length,
+    2.2,
+  );
+
   return (
     <main className="min-h-screen bg-slate-50">
       {/* Promotional information bar */}
-<section className="border-b border-slate-200 bg-white">
-  <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-8 gap-y-2 px-4 py-2.5 text-xs font-medium text-slate-600 sm:px-6 lg:px-8">
+      <section className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-8 gap-y-2 px-4 py-2.5 text-xs font-medium text-slate-600 sm:px-6 lg:px-8">
+          <span className="flex items-center gap-2">
+            <Truck
+              size={16}
+              strokeWidth={2.2}
+              className="text-[#121358]"
+            />
+            Free delivery on selected orders
+          </span>
 
-    <span className="flex items-center gap-2">
-      <Truck size={16} strokeWidth={2.2} className="text-[#121358]" />
-      Free delivery on selected orders
-    </span>
+          <span className="hidden h-4 w-px bg-slate-300 sm:block" />
 
-    <span className="hidden h-4 w-px bg-slate-300 sm:block" />
+          <span className="flex items-center gap-2">
+            <RotateCcw
+              size={16}
+              strokeWidth={2.2}
+              className="text-[#121358]"
+            />
+            New deals added every week
+          </span>
 
-    <span className="flex items-center gap-2">
-      <RotateCcw size={16} strokeWidth={2.2} className="text-[#121358]" />
-      New deals added every week
-    </span>
+          <span className="hidden h-4 w-px bg-slate-300 sm:block" />
 
-    <span className="hidden h-4 w-px bg-slate-300 sm:block" />
-
-    <span className="flex items-center gap-2">
-      <ShieldCheck size={16} strokeWidth={2.2} className="text-[#121358]" />
-      Secure and trusted shopping
-    </span>
-
-  </div>
-</section>
+          <span className="flex items-center gap-2">
+            <ShieldCheck
+              size={16}
+              strokeWidth={2.2}
+              className="text-[#121358]"
+            />
+            Secure and trusted shopping
+          </span>
+        </div>
+      </section>
 
       {/* Hero promotional section */}
       <section className="px-4 pb-5 pt-6 sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-7xl grid-cols-1 gap-4 lg:grid-cols-12 lg:items-stretch">
-          {/* Main large promotional banner � driven by the admin-managed Banner API */}
           <article className="relative h-[560px] overflow-hidden rounded-3xl bg-[#121358] text-white shadow-xl sm:h-[580px] lg:col-span-8 lg:h-[620px]">
             <Swiper
               modules={[Autoplay]}
-              autoplay={{ delay: 5000, disableOnInteraction: false }}
+              autoplay={{
+                delay: 5000,
+                disableOnInteraction: false,
+              }}
               loop={heroSlides.length > 1}
-              onSlideChange={(swiper) => setActiveHeroSlide(swiper.realIndex)}
+              onSlideChange={(swiper) =>
+                setActiveHeroSlide(swiper.realIndex)
+              }
               className="hero-swiper relative z-10 h-full w-full"
             >
               {heroSlides.map((slide, index) => (
-                <SwiperSlide key={slide.key} className="!h-full">
+                <SwiperSlide
+                  key={slide.key}
+                  className="!h-full"
+                >
                   <div className="relative h-full w-full overflow-hidden">
-                    {/* Uploaded banner image fills the complete hero div */}
                     <div className="absolute inset-0 z-0 h-full w-full">
                       <HeroBannerImage
                         src={slide.image}
@@ -368,11 +422,10 @@ export default function HomePage() {
                       />
                     </div>
 
-                    {/* Overlay keeps text readable */}
                     <div className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-r from-[#080934]/95 via-[#121358]/72 to-transparent" />
+
                     <div className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-t from-black/35 via-transparent to-black/5 sm:hidden" />
 
-                    {/* Slide content */}
                     <div className="relative z-20 flex h-full w-full items-center px-6 py-9 sm:px-10 sm:py-10 lg:px-12">
                       <div className="max-w-xl sm:max-w-[58%]">
                         {slide.tag && (
@@ -383,7 +436,10 @@ export default function HomePage() {
                         )}
 
                         <h1 className="max-w-lg text-3xl font-black leading-tight text-white drop-shadow-md sm:text-4xl lg:text-5xl">
-                          {renderHeroTitle(slide.title, slide.highlight)}
+                          {renderHeroTitle(
+                            slide.title,
+                            slide.highlight,
+                          )}
                         </h1>
 
                         {slide.description && (
@@ -399,9 +455,12 @@ export default function HomePage() {
                                 <p className="text-xs font-medium uppercase tracking-wider text-white/70">
                                   Starting from
                                 </p>
+
                                 <p className="mt-1 text-3xl font-black text-white">
                                   ${slide.price}
-                                  <span className="text-base font-semibold text-white/70">.00</span>
+                                  <span className="text-base font-semibold text-white/70">
+                                    .00
+                                  </span>
                                 </p>
                               </div>
                             )}
@@ -420,6 +479,7 @@ export default function HomePage() {
                             className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#F59E0B] px-6 py-3 text-sm font-bold text-white shadow-lg transition duration-300 hover:-translate-y-0.5 hover:bg-[#dc8908] hover:shadow-xl"
                           >
                             {slide.ctaText}
+
                             <svg
                               className="h-4 w-4"
                               fill="none"
@@ -452,7 +512,6 @@ export default function HomePage() {
               ))}
             </Swiper>
 
-            {/* Slider dots */}
             {heroSlides.length > 1 && (
               <div className="absolute bottom-5 left-1/2 z-30 flex -translate-x-1/2 gap-2 sm:left-auto sm:right-8 sm:translate-x-0">
                 {heroSlides.map((slide, index) => (
@@ -480,7 +539,6 @@ export default function HomePage() {
 
           {/* Right-side promotional banners */}
           <div className="grid gap-4 sm:grid-cols-2 lg:col-span-4 lg:h-[620px] lg:grid-cols-1 lg:grid-rows-2">
-            {/* Smart watch banner */}
             <article className="group relative min-h-[250px] overflow-hidden rounded-3xl bg-gradient-to-br from-[#ffd52a] to-[#f3a900] p-7 shadow-lg transition duration-300 hover:-translate-y-1 hover:shadow-xl lg:h-full lg:min-h-0">
               <div className="relative z-20 max-w-[58%]">
                 <span className="inline-block rounded-full bg-black/10 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-[#121358]">
@@ -503,8 +561,7 @@ export default function HomePage() {
                   href="/categories/Accessories"
                   className="mt-4 inline-flex items-center gap-1 text-xs font-black uppercase tracking-wide text-[#121358] underline decoration-2 underline-offset-4"
                 >
-                  Shop now
-                  <span aria-hidden="true">?</span>
+                  Shop now →
                 </Link>
               </div>
 
@@ -512,7 +569,7 @@ export default function HomePage() {
                 <PromoImage
                   src="/watch1.png"
                   alt="Smart watch promotion"
-                  fallback="?"
+                  fallback="⌚"
                   className="object-bottom"
                 />
               </div>
@@ -520,7 +577,6 @@ export default function HomePage() {
               <div className="pointer-events-none absolute -right-10 -top-14 h-40 w-40 rounded-full bg-white/30 blur-2xl" />
             </article>
 
-            {/* Headphone banner */}
             <article className="group relative min-h-[250px] overflow-hidden rounded-3xl bg-gradient-to-br from-[#7146d9] via-[#8b5de7] to-[#d167c7] p-7 text-white shadow-lg transition duration-300 hover:-translate-y-1 hover:shadow-xl lg:h-full lg:min-h-0">
               <div className="relative z-20 max-w-[58%]">
                 <span className="inline-block rounded-full bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-white">
@@ -543,8 +599,7 @@ export default function HomePage() {
                   href="/categories/earbuds"
                   className="mt-4 inline-flex items-center gap-1 text-xs font-black uppercase tracking-wide text-white underline decoration-2 underline-offset-4"
                 >
-                  Shop now
-                  <span aria-hidden="true">?</span>
+                  Shop now →
                 </Link>
               </div>
 
@@ -552,7 +607,7 @@ export default function HomePage() {
                 <PromoImage
                   src="/earsbads.png"
                   alt="Wireless headphones promotion"
-                  fallback="??"
+                  fallback="🎧"
                   className="object-bottom"
                 />
               </div>
@@ -583,6 +638,7 @@ export default function HomePage() {
             title="Easy Returns"
             description="Simple return process"
           />
+
           <ServiceItem
             icon={<Headphones size={22} strokeWidth={2.2} />}
             title="Customer Support"
@@ -592,29 +648,22 @@ export default function HomePage() {
       </section>
 
       {/* Shop by category */}
-      <section id="shop-by-category" className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#F59E0B]">
-              Find what you need
-            </p>
+      <section
+        id="shop-by-category"
+        className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8"
+      >
+        <div className="mb-7">
+          <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#F59E0B]">
+            Find what you need
+          </p>
 
-            <h2 className="mt-2 text-2xl font-black text-[#121358] sm:text-3xl">
-              Shop by Category
-            </h2>
+          <h2 className="mt-2 text-2xl font-black text-[#121358] sm:text-3xl">
+            Shop by Category
+          </h2>
 
-            <p className="mt-2 text-sm text-slate-500">
-              Explore our most popular technology categories.
-            </p>
-          </div>
-
-          <Link
-            href="/products"
-            className="inline-flex items-center gap-2 text-sm font-bold text-[#121358] transition hover:text-[#F59E0B]"
-          >
-            View all products
-              <span aria-hidden="true">→</span>
-          </Link>
+          <p className="mt-2 text-sm text-slate-500">
+            Explore our most popular technology categories.
+          </p>
         </div>
 
         {error && (
@@ -623,57 +672,86 @@ export default function HomePage() {
           </div>
         )}
 
-        {categories.length > 0 ? (
+        {subcategories.length > 0 ? (
           <div className="relative">
             <Swiper
-              modules={[Navigation]}
+              modules={[Navigation, Mousewheel]}
               spaceBetween={16}
-              slidesPerView={2.2}
-              onSwiper={setCategorySwiper}
+              slidesPerView={smallMobileCategorySlides}
+              watchOverflow={false}
+              grabCursor
+              allowTouchMove
+              mousewheel={{
+                forceToAxis: true,
+                sensitivity: 1,
+              }}
+              onSwiper={(swiper) => {
+                setCategorySwiper(swiper);
+                setIsCategoryStart(swiper.isBeginning);
+                setIsCategoryEnd(swiper.isEnd);
+              }}
               onSlideChange={(swiper) => {
                 setIsCategoryStart(swiper.isBeginning);
                 setIsCategoryEnd(swiper.isEnd);
               }}
+              onResize={(swiper) => {
+                setIsCategoryStart(swiper.isBeginning);
+                setIsCategoryEnd(swiper.isEnd);
+              }}
               breakpoints={{
-                480: { slidesPerView: 3.2 },
-                768: { slidesPerView: 4.2 },
-                1024: { slidesPerView: 6 },
+                480: {
+                  slidesPerView: mobileCategorySlides,
+                },
+                768: {
+                  slidesPerView: tabletCategorySlides,
+                },
+                1024: {
+                  slidesPerView: desktopCategorySlides,
+                },
               }}
               className="category-swiper !pb-1 !pl-1 !pr-1"
             >
-              {categories.map((category) => {
+              {subcategories.map((subcategory) => {
+                const categoryImageUrl =
+                  subcategory.image_url ?? null;
+
                 const categoryType = (
-                  category.slug ??
-                  ""
+                  subcategory.slug ?? ""
                 ).toLowerCase();
 
-                const categoryImageUrl =
-  (category as CategoryWithImage).image_url ?? null;
-
                 return (
-                  <SwiperSlide key={category.id}>
+                  <SwiperSlide
+                    key={subcategory.id}
+                    className="!h-auto"
+                  >
                     <Link
-                      href={`/categories/${category.slug}`}
-                      className="group relative block overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 text-center shadow-sm transition duration-300 hover:-translate-y-1 hover:border-[#F59E0B]/50 hover:shadow-lg sm:p-6"
+                      href={`/categories/${subcategory.slug}`}
+                      className="group relative flex h-[220px] w-full flex-col items-center overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm transition duration-300 hover:-translate-y-1 hover:border-[#F59E0B]/50 hover:shadow-lg"
                     >
                       <div className="pointer-events-none absolute -right-8 -top-8 h-20 w-20 rounded-full bg-[#F59E0B]/10 transition duration-300 group-hover:scale-150" />
 
-                      <div className="relative mx-auto flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl bg-[#121358]/5 transition duration-300 group-hover:bg-white group-hover:scale-105">
+                      <div className="relative mx-auto flex h-[68px] w-[68px] shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#121358]/5 transition duration-300 group-hover:scale-105 group-hover:bg-white">
                         {categoryImageUrl ? (
                           <img
                             src={categoryImageUrl}
-                            alt={category.name}
+                            alt={subcategory.name}
                             className="h-full w-full object-contain p-2"
+                            onError={(event) => {
+                              event.currentTarget.style.display =
+                                "none";
+                            }}
                           />
                         ) : (
                           <span className="text-3xl">
-                            {categoryIcons[categoryType] ?? "??"}
+                            {categoryIcons[categoryType] ?? "📦"}
                           </span>
                         )}
                       </div>
 
-                      <span className="relative mt-4 block text-sm font-bold text-slate-800 transition group-hover:text-[#121358]">
-                        {category.name}
+                      <span className="relative mt-4 flex h-10 w-full items-center justify-center text-sm font-bold leading-5 text-slate-800 transition group-hover:text-[#121358]">
+                        <span className="line-clamp-2">
+                          {subcategory.name}
+                        </span>
                       </span>
 
                       <span className="relative mt-2 inline-block text-xs font-semibold text-slate-400 transition group-hover:text-[#F59E0B]">
@@ -685,7 +763,6 @@ export default function HomePage() {
               })}
             </Swiper>
 
-            {/* Left arrow */}
             <button
               type="button"
               aria-label="Previous categories"
@@ -696,7 +773,6 @@ export default function HomePage() {
               <ChevronLeft size={18} strokeWidth={2.5} />
             </button>
 
-            {/* Right arrow */}
             <button
               type="button"
               aria-label="Next categories"
@@ -730,21 +806,26 @@ type ServiceItemProps = {
   description: string;
 };
 
-function ServiceItem({ icon, title, description }: ServiceItemProps) {
+function ServiceItem({
+  icon,
+  title,
+  description,
+}: ServiceItemProps) {
   return (
     <div className="flex items-center gap-3 border-b border-r border-slate-200 p-4 transition hover:bg-slate-50 sm:p-5 lg:border-b-0">
-    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#F59E0B]/10 text-[#121358]">
-    {icon}
-</div>
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#F59E0B]/10 text-[#121358]">
+        {icon}
+      </div>
 
       <div className="min-w-0">
-        <h3 className="text-sm font-bold text-[#121358]">{title}</h3>
+        <h3 className="text-sm font-bold text-[#121358]">
+          {title}
+        </h3>
 
-        <p className="mt-0.5 text-xs text-slate-500">{description}</p>
+        <p className="mt-0.5 text-xs text-slate-500">
+          {description}
+        </p>
       </div>
     </div>
   );
 }
-
-
-

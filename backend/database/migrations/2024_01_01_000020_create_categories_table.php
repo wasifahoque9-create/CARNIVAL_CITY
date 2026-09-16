@@ -11,13 +11,31 @@ return new class extends Migration
         Schema::create('categories', function (Blueprint $table) {
             $table->id();
 
+            /*
+             * NULL parent_id = main category.
+             *
+             * A non-NULL parent_id means this category
+             * belongs to a main category.
+             */
             $table->foreignId('parent_id')
                 ->nullable()
                 ->constrained('categories')
-                ->nullOnDelete();
+                ->cascadeOnDelete();
 
             $table->string('name');
-            $table->string('slug')->unique();
+
+            $table->string('slug')
+                ->unique();
+
+            /*
+             * Stores the category image path.
+             *
+             * Examples:
+             * categories/laptops.jpg
+             * https://res.cloudinary.com/...
+             */
+            $table->string('image_path')
+                ->nullable();
 
             $table->timestamps();
         });

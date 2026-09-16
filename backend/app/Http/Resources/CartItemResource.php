@@ -14,7 +14,6 @@ class CartItemResource extends JsonResource
         if ($product) {
             $product->loadMissing([
                 'category',
-                'categories',
                 'images',
                 'primaryImage',
             ]);

@@ -164,8 +164,7 @@ className="rounded-lg px-3 py-2 text-sm font-medium text-[#172554] transition ho
                 {isAdmin && (
                   <Link
                     href="/admin"
-                    className="rounded-lg border border-secondary/60 bg-secondary/15 px-3 py-2 text-sm font-bold text-secondary transition hover:bg-secondary hover:text-white"
-                  >
+className="rounded-lg border border-[#121358] bg-[#121358] px-3 py-2 text-sm font-bold text-white transition hover:bg-[#1b1d78]"                  >
                     Admin
                   </Link>
                 )}
@@ -173,8 +172,7 @@ className="rounded-lg px-3 py-2 text-sm font-medium text-[#172554] transition ho
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="rounded-lg px-3 py-2 text-sm font-medium text-white/80 transition hover:bg-red-500/20 hover:text-red-200"
-                >
+className="rounded-lg px-3 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50 hover:text-red-700"                >
                   Logout
                 </button>
               </>

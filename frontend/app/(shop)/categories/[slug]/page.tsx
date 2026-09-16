@@ -12,29 +12,50 @@ import type { Category, Product } from "@/types";
 export default function CategoryPage() {
   const params = useParams();
   const slug = params.slug as string;
+
   const [category, setCategory] = useState<Category | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [loading, setLoading] = useState(true);
+
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [sort, setSort] = useState("newest");
-  const [appliedFilters, setAppliedFilters] = useState({ minPrice: "", maxPrice: "", sort: "newest" });
+
+  const [appliedFilters, setAppliedFilters] = useState({
+    minPrice: "",
+    maxPrice: "",
+    sort: "newest",
+  });
 
   const loadProducts = useCallback(async () => {
     setLoading(true);
+
     try {
       const categories = await catalogApi.getCategories();
+
       const cat =
         categories.find((c) => c.slug === slug) ||
-        categories.flatMap((c) => c.children || []).find((c) => c.slug === slug) ||
+        categories
+          .flatMap((c) => c.children || [])
+          .find((c) => c.slug === slug) ||
         null;
 
       const result = await catalogApi.getCategoryProducts(slug, {
         page,
-        min_price: appliedFilters.minPrice ? Number(appliedFilters.minPrice) : undefined,
-        max_price: appliedFilters.maxPrice ? Number(appliedFilters.maxPrice) : undefined,
+        min_price: appliedFilters.minPrice
+          ? Number(appliedFilters.minPrice)
+          : undefined,
+        max_price: appliedFilters.maxPrice
+          ? Number(appliedFilters.maxPrice)
+          : undefined,
+        sort: appliedFilters.sort as
+          | "newest"
+          | "name"
+          | "price_asc"
+          | "price_desc"
+          | "rating",
       });
 
       setCategory(cat);
@@ -54,7 +75,12 @@ export default function CategoryPage() {
 
   function applyFilters() {
     setPage(1);
-    setAppliedFilters({ minPrice, maxPrice, sort });
+
+    setAppliedFilters({
+      minPrice,
+      maxPrice,
+      sort,
+    });
   }
 
   function resetFilters() {
@@ -62,10 +88,17 @@ export default function CategoryPage() {
     setMaxPrice("");
     setSort("newest");
     setPage(1);
-    setAppliedFilters({ minPrice: "", maxPrice: "", sort: "newest" });
+
+    setAppliedFilters({
+      minPrice: "",
+      maxPrice: "",
+      sort: "newest",
+    });
   }
 
-  if (loading && !category) return <PageLoader />;
+  if (loading && !category) {
+    return <PageLoader />;
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -76,7 +109,16 @@ export default function CategoryPage() {
       </div>
 
       <div className="grid gap-8 lg:grid-cols-4">
-        <aside className="lg:col-span-1">
+        {/*
+         * Sticky filter sidebar
+         *
+         * On large screens:
+         * - The filter stays visible while the product list scrolls.
+         *
+         * On mobile/tablet:
+         * - The filter behaves normally.
+         */}
+        <aside className="lg:sticky lg:top-24 lg:col-span-1 lg:self-start">
           <ProductFilters
             minPrice={minPrice}
             maxPrice={maxPrice}
@@ -88,12 +130,14 @@ export default function CategoryPage() {
             onReset={resetFilters}
           />
         </aside>
+
         <div className="lg:col-span-3">
           {loading ? (
             <PageLoader />
           ) : (
             <>
               <ProductGrid products={products} />
+
               {lastPage > 1 && (
                 <div className="mt-8 flex justify-center gap-2">
                   <Button
@@ -103,9 +147,11 @@ export default function CategoryPage() {
                   >
                     Previous
                   </Button>
+
                   <span className="flex items-center px-4 text-sm text-muted">
                     Page {page} of {lastPage}
                   </span>
+
                   <Button
                     variant="outline"
                     disabled={page >= lastPage}

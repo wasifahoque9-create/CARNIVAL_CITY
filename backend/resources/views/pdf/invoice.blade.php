@@ -391,7 +391,7 @@
                 <img
     src="{{ public_path('logo.png') }}"
     alt="Carnival City"
-    style="width: 150px; height: auto; margin-bottom: 8px;"
+    style="width: 120px; height: auto; margin-bottom: 8px;"
 >
                 <h1 class="brand-name">
                     {{ $business->business_name ?? 'ShopSphere' }}

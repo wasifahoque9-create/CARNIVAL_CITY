@@ -2,7 +2,7 @@ import type {
   Address,
   ApiMessage,
   AuthResponse,
-    Banner,
+  Banner,
   Cart,
   Category,
   PaginationMeta,
@@ -18,7 +18,6 @@ import type {
   ReviewsResponse,
   User,
 } from "@/types";
-
 
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ||
@@ -214,6 +213,7 @@ export async function api<T>(
    * Do not manually set Content-Type for FormData.
    * Browser automatically sets multipart boundary.
    */
+
   if (!isFormData) {
     headers.set(
       "Content-Type",
@@ -224,6 +224,7 @@ export async function api<T>(
   /*
    * Logged-in customer/admin token.
    */
+
   if (token) {
     headers.set(
       "Authorization",
@@ -238,6 +239,7 @@ export async function api<T>(
    * Laravel CartService will prioritize the user
    * whenever an authenticated user exists.
    */
+
   if (guestCartToken) {
     headers.set(
       "X-Guest-Cart-Token",
@@ -337,8 +339,7 @@ export function getVariantLabel(
 export function getProductImage(
   product: Product,
 ): string {
-  const images =
-    product.images ?? [];
+  const images = product.images ?? [];
 
   const selectedImage =
     images.find(
@@ -350,9 +351,19 @@ export function getProductImage(
   }
 
   /*
+   * Prefer the optimized thumbnail for product
+   * cards, tables, and other small image displays.
+   */
+
+  if (selectedImage.thumbnail_url) {
+    return selectedImage.thumbnail_url;
+  }
+
+  /*
    * Backend may already provide
    * a full public image URL.
    */
+
   if (selectedImage.url) {
     return selectedImage.url;
   }
@@ -402,6 +413,7 @@ export function formatOrderNumber(
     "0",
   )}`;
 }
+
 /*
 |--------------------------------------------------------------------------
 | Banner helpers
@@ -409,15 +421,21 @@ export function formatOrderNumber(
 */
 
 export function getBannerImage(
-  banner: { image_path?: string | null },
+  banner: {
+    image_path?: string | null;
+  },
 ): string | null {
   if (!banner.image_path) {
     return null;
   }
 
   if (
-    banner.image_path.startsWith("http://") ||
-    banner.image_path.startsWith("https://")
+    banner.image_path.startsWith(
+      "http://",
+    ) ||
+    banner.image_path.startsWith(
+      "https://",
+    )
   ) {
     return banner.image_path;
   }
@@ -476,6 +494,7 @@ export const bannerApi = {
       }
     >("/banners").then(unwrap),
 };
+
 /*
 |--------------------------------------------------------------------------
 | Authentication API
@@ -509,7 +528,8 @@ export const authApi = {
         body: JSON.stringify(data),
       },
     ),
-      google: (data: {
+
+  google: (data: {
     id_token: string;
   }) =>
     api<AuthResponse>(
@@ -524,7 +544,10 @@ export const authApi = {
     password: string;
     password_confirmation: string;
   }) =>
-    api<{ message: string; user: User }>("/auth/set-password", {
+    api<{
+      message: string;
+      user: User;
+    }>("/auth/set-password", {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -964,75 +987,82 @@ export const orderApi = {
         method: "PUT",
       },
     ).then(unwrap),
-    downloadInvoice: async (
-  id: number | string,
-): Promise<void> => {
-  const token = getToken();
-  const guestCartToken = getGuestCartToken();
 
-  const headers = new Headers();
+  downloadInvoice: async (
+    id: number | string,
+  ): Promise<void> => {
+    const token = getToken();
+    const guestCartToken =
+      getGuestCartToken();
 
-  headers.set("Accept", "application/pdf");
+    const headers = new Headers();
 
-  if (token) {
     headers.set(
-      "Authorization",
-      `Bearer ${token}`,
+      "Accept",
+      "application/pdf",
     );
-  }
 
-  if (guestCartToken) {
-    headers.set(
-      "X-Guest-Cart-Token",
-      guestCartToken,
+    if (token) {
+      headers.set(
+        "Authorization",
+        `Bearer ${token}`,
+      );
+    }
+
+    if (guestCartToken) {
+      headers.set(
+        "X-Guest-Cart-Token",
+        guestCartToken,
+      );
+    }
+
+    const response = await fetch(
+      `${API_BASE}/orders/${id}/invoice`,
+      {
+        method: "GET",
+        headers,
+      },
     );
-  }
 
-  const response = await fetch(
-    `${API_BASE}/orders/${id}/invoice`,
-    {
-      method: "GET",
-      headers,
-    },
-  );
+    if (!response.ok) {
+      const body = await response
+        .json()
+        .catch(() => ({}));
 
-  if (!response.ok) {
-    const body = await response
-      .json()
-      .catch(() => ({}));
+      throw new ApiError(
+        response.status,
+        body.message ||
+          "Unable to download the invoice.",
+        body.errors,
+      );
+    }
 
-    throw new ApiError(
-      response.status,
-      body.message ||
-        "Unable to download the invoice.",
-      body.errors,
-    );
-  }
+    const blob =
+      await response.blob();
 
-  const blob =
-    await response.blob();
+    const url =
+      window.URL.createObjectURL(blob);
 
-  const url =
-    window.URL.createObjectURL(blob);
+    const link =
+      document.createElement("a");
 
-  const link =
-    document.createElement("a");
+    link.href = url;
 
-  link.href = url;
+    link.download =
+      `invoice-${String(id).padStart(
+        6,
+        "0",
+      )}.pdf`;
 
-  link.download =
-    `invoice-${String(id).padStart(6, "0")}.pdf`;
+    document.body.appendChild(link);
 
-  document.body.appendChild(link);
+    link.click();
 
-  link.click();
+    link.remove();
 
-  link.remove();
-
-  window.URL.revokeObjectURL(url);
-},
+    window.URL.revokeObjectURL(url);
+  },
 };
-
 
 /*
 |--------------------------------------------------------------------------
@@ -1071,6 +1101,7 @@ export type QuotationRequestResponse = {
     | "rejected";
   created_at?: string;
   updated_at?: string;
+
   items?: Array<{
     id: number;
     quotation_request_id: number;
@@ -1120,7 +1151,9 @@ export const quotationApi = {
       data: QuotationRequestResponse;
     }>(
       `/admin/quotations/${id}`,
-    ).then((response) => response.data),
+    ).then(
+      (response) => response.data,
+    ),
 
   adminUpdate: (
     id: number | string,
@@ -1145,7 +1178,8 @@ export const quotationApi = {
         body: JSON.stringify(data),
       },
     ),
-      downloadPdf: async (
+
+  downloadPdf: async (
     id: number | string,
   ): Promise<void> => {
     const token = getToken();
@@ -1207,7 +1241,10 @@ export const quotationApi = {
     link.href = url;
 
     link.download =
-      `quotation-${String(id).padStart(6, "0")}.pdf`;
+      `quotation-${String(id).padStart(
+        6,
+        "0",
+      )}.pdf`;
 
     document.body.appendChild(link);
 
@@ -1250,25 +1287,23 @@ export const adminApi = {
       api<
         PaginatedResponse<Product>
       >(
-        `/admin/products${buildQuery(
-          {
-            page:
-              params?.page ?? 1,
-            per_page:
-              params?.per_page ??
-              20,
-            search:
-              params?.search,
-            category_id:
-              params?.category_id,
-            status:
-              params?.status,
-            sort_by:
-              params?.sort_by,
-            sort_direction:
-              params?.sort_direction,
-          },
-        )}`,
+        `/admin/products${buildQuery({
+          page:
+            params?.page ?? 1,
+          per_page:
+            params?.per_page ??
+            20,
+          search:
+            params?.search,
+          category_id:
+            params?.category_id,
+          status:
+            params?.status,
+          sort_by:
+            params?.sort_by,
+          sort_direction:
+            params?.sort_direction,
+        })}`,
       ),
 
     get: (id: number) =>
@@ -1330,6 +1365,7 @@ export const adminApi = {
        *
        * POST + _method=PUT
        */
+
       if (isFormData) {
         if (!data.has("_method")) {
           data.append(
@@ -1376,35 +1412,54 @@ export const adminApi = {
   },
 
   categories: {
-  list: () =>
-    api<
-      Category[] | {
-        data: Category[];
-      }
-    >("/categories").then(unwrap),
+    list: () =>
+      api<
+        Category[] | {
+          data: Category[];
+        }
+      >("/categories").then(
+        unwrap,
+      ),
 
-  create: (
-    data: FormData | Partial<Category>,
-  ) =>
-    api<
-      Category | {
-        data: Category;
-      }
-    >("/categories", {
-      method: "POST",
-      body:
-        data instanceof FormData
-          ? data
-          : JSON.stringify(data),
-    }).then(unwrap),
+    create: (
+      data:
+        | FormData
+        | Partial<Category>,
+    ) =>
+      api<
+        Category | {
+          data: Category;
+        }
+      >("/categories", {
+        method: "POST",
+        body:
+          data instanceof FormData
+            ? data
+            : JSON.stringify(data),
+      }).then(unwrap),
 
-  update: (
-    id: number,
-    data: FormData | Partial<Category>,
-  ) => {
-    if (data instanceof FormData) {
-      if (!data.has("_method")) {
-        data.append("_method", "PUT");
+    update: (
+      id: number,
+      data:
+        | FormData
+        | Partial<Category>,
+    ) => {
+      if (data instanceof FormData) {
+        if (!data.has("_method")) {
+          data.append(
+            "_method",
+            "PUT",
+          );
+        }
+
+        return api<
+          Category | {
+            data: Category;
+          }
+        >(`/categories/${id}`, {
+          method: "POST",
+          body: data,
+        }).then(unwrap);
       }
 
       return api<
@@ -1412,91 +1467,100 @@ export const adminApi = {
           data: Category;
         }
       >(`/categories/${id}`, {
-        method: "POST",
-        body: data,
+        method: "PUT",
+        body: JSON.stringify(data),
       }).then(unwrap);
-    }
+    },
 
-    return api<
-      Category | {
-        data: Category;
-      }
-    >(`/categories/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }).then(unwrap);
+    delete: (id: number) =>
+      api<ApiMessage>(
+        `/categories/${id}`,
+        {
+          method: "DELETE",
+        },
+      ),
   },
 
-  delete: (id: number) =>
-    api<ApiMessage>(
-      `/categories/${id}`,
-      {
-        method: "DELETE",
-      },
-    ),
-},
+  customers: {
+    list: (params?: {
+      page?: number;
+      per_page?: number;
+      search?: string;
+    }) =>
+      api<PaginatedResponse<User>>(
+        `/admin/customers${buildQuery({
+          page:
+            params?.page ?? 1,
+          per_page:
+            params?.per_page ??
+            20,
+          search:
+            params?.search,
+        })}`,
+      ),
 
-customers: {
-  list: (params?: {
-    page?: number;
-    per_page?: number;
-    search?: string;
-  }) =>
-    api<PaginatedResponse<User>>(
-      `/admin/customers${buildQuery({
-        page: params?.page ?? 1,
-        per_page: params?.per_page ?? 20,
-        search: params?.search,
-      })}`,
-    ),
-
-  create: (data: {
-    name: string;
-    email: string;
-    phone?: string;
-    password: string;
-    password_confirmation: string;
-  }) =>
-    api<{ customer: User }>(
-      "/admin/customers",
-      {
-        method: "POST",
-        body: JSON.stringify(data),
-      },
-    ).then((response) => response.customer),
-
-  update: (
-    id: number,
-    data: {
+    create: (data: {
       name: string;
       email: string;
       phone?: string;
-    },
-  ) =>
-    api<{ customer: User }>(
-      `/admin/customers/${id}`,
-      {
-        method: "PUT",
-        body: JSON.stringify(data),
-      },
-    ).then((response) => response.customer),
+      password: string;
+      password_confirmation: string;
+    }) =>
+      api<{ customer: User }>(
+        "/admin/customers",
+        {
+          method: "POST",
+          body: JSON.stringify(data),
+        },
+      ).then(
+        (response) =>
+          response.customer,
+      ),
 
-  delete: (id: number) =>
-    api<ApiMessage>(
-      `/admin/customers/${id}`,
-      {
-        method: "DELETE",
+    update: (
+      id: number,
+      data: {
+        name: string;
+        email: string;
+        phone?: string;
       },
-    ),
-},
+    ) =>
+      api<{ customer: User }>(
+        `/admin/customers/${id}`,
+        {
+          method: "PUT",
+          body: JSON.stringify(data),
+        },
+      ).then(
+        (response) =>
+          response.customer,
+      ),
+
+    delete: (id: number) =>
+      api<ApiMessage>(
+        `/admin/customers/${id}`,
+        {
+          method: "DELETE",
+        },
+      ),
+  },
+
   banners: {
     list: () =>
-      api<Banner[] | { data: Banner[] }>(
+      api<
+        Banner[] | {
+          data: Banner[];
+        }
+      >(
         "/admin/banners",
       ).then(unwrap),
 
     create: (data: FormData) =>
-      api<Banner | { data: Banner }>(
+      api<
+        Banner | {
+          data: Banner;
+        }
+      >(
         "/admin/banners",
         {
           method: "POST",
@@ -1504,12 +1568,22 @@ customers: {
         },
       ).then(unwrap),
 
-    update: (id: number, data: FormData) => {
+    update: (
+      id: number,
+      data: FormData,
+    ) => {
       if (!data.has("_method")) {
-        data.append("_method", "PUT");
+        data.append(
+          "_method",
+          "PUT",
+        );
       }
 
-      return api<Banner | { data: Banner }>(
+      return api<
+        Banner | {
+          data: Banner;
+        }
+      >(
         `/admin/banners/${id}`,
         {
           method: "POST",
@@ -1526,6 +1600,7 @@ customers: {
         },
       ),
   },
+
   orders: {
     /*
     |--------------------------------------------------------------------------
