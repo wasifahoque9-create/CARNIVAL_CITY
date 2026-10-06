@@ -319,17 +319,12 @@ Route::get('/guest/orders/{order}', [
 Route::middleware('auth:sanctum')
     ->prefix('orders')
     ->group(function () {
-        // Create order
-        Route::post('/', [
-            OrderController::class,
-            'store',
-        ]);
-
         // Current user's orders
         Route::get('/', [
             OrderController::class,
             'index',
         ]);
+
         // Single order
         Route::get('/{order}', [
             OrderController::class,

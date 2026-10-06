@@ -537,7 +537,7 @@ export default function ProductsByCategory() {
                         category.id,
                       )
                     }
-                    className={`shrink-0 whitespace-nowrap rounded-[15px] px-5 py-2 text-sm font-black transition-all duration-200 sm:px-7 sm:py-2.5 sm:text-base ${
+                    className={`flex-1 min-w-max whitespace-nowrap rounded-[15px] px-5 py-2 text-sm font-black transition-all duration-200 sm:px-7 sm:py-2.5 sm:text-base ${
                       isActive
                         ? "bg-[#121358] text-white shadow-md"
                         : "text-slate-500 hover:bg-slate-100 hover:text-[#121358]"
